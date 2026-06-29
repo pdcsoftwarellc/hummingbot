@@ -42,6 +42,13 @@ class BacktestingResult:
         total_fees = results.get("total_fees_quote", 0)
         unrealized_pnl = results.get("unrealized_pnl_quote", 0)
         position_realized_pnl = results.get("position_realized_pnl_quote", 0)
+        collateral_amount = results.get("collateral_amount_quote", 0)
+        entry_notional = results.get("total_entry_notional_quote", 0)
+        collateral_used = results.get("total_collateral_used_quote", 0)
+        return_on_entry_notional = results.get("return_on_entry_notional", 0)
+        return_on_collateral_used = results.get("return_on_collateral_used", 0)
+        avg_leverage = results.get("avg_leverage", 1)
+        max_leverage = results.get("max_leverage", 1)
         close_types = results.get("close_types", {})
         if not isinstance(close_types, dict):
             close_types = {}
@@ -57,6 +64,11 @@ class BacktestingResult:
             f"Unrealized PNL: ${unrealized_pnl:.2f} | "
             f"Position Realized PNL: ${position_realized_pnl:.2f} | "
             f"Max Drawdown: ${max_drawdown:.2f} ({max_drawdown_pct * 100:.2f}%)\n"
+            f"Collateral ($): {collateral_amount:.2f} | Entry Notional ($): {entry_notional:.2f} | "
+            f"Collateral Used ($): {collateral_used:.2f} | "
+            f"Return on Notional: {return_on_entry_notional * 100:.2f}% | "
+            f"Return on Used Collateral: {return_on_collateral_used * 100:.2f}% | "
+            f"Avg/Max Leverage: {avg_leverage:.2f}x/{max_leverage:.2f}x\n"
             f"Total Volume ($): {total_volume:.2f} | Sharpe Ratio: {sharpe_ratio:.2f} | "
             f"Profit Factor: {profit_factor:.2f}\n"
             f"Total Executors: {total_executors} | Accuracy Long: {accuracy_long:.2f} | "

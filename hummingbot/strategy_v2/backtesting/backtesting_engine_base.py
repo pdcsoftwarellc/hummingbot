@@ -527,6 +527,8 @@ class BacktestingEngineBase:
                           pnl_timeseries: Optional[List[Dict]] = None):
         if len(executors_info) > 0:
             executors_df = pd.DataFrame([ei.to_dict() for ei in executors_info])
+            for numeric_column in ["net_pnl_quote", "cum_fees_quote", "filled_amount_quote"]:
+                executors_df[numeric_column] = pd.to_numeric(executors_df[numeric_column], errors="coerce").fillna(0.0)
 
             # Separate POSITION_HOLD executors — their PnL is tracked in position holds
             non_hold_mask = executors_df["close_type"] != CloseType.POSITION_HOLD
@@ -570,6 +572,32 @@ class BacktestingEngineBase:
             total_loss = -loss_signals.loc[:, "net_pnl_quote"].sum() if len(loss_signals) > 0 else 0
             profit_factor = total_won / total_loss if total_loss > 0 else 1
 
+            entry_notional_quote = 0.0
+            collateral_used_quote = 0.0
+            weighted_leverage = 0.0
+            max_leverage = 1.0
+            for _, executor in non_hold_with_position.iterrows():
+                config = executor.get("config", {})
+                if not isinstance(config, dict):
+                    config = {}
+                leverage = float(config.get("leverage", 1) or 1)
+                leverage = max(leverage, 1)
+                max_leverage = max(max_leverage, leverage)
+
+                filled_amount_quote = float(executor["filled_amount_quote"])
+                # PositionExecutor reports round-trip filled quote on close. Use entry notional
+                # for collateral estimates so leverage math is not distorted by exit volume.
+                if config.get("type") == "position_executor":
+                    executor_entry_notional = filled_amount_quote / 2
+                else:
+                    executor_entry_notional = filled_amount_quote
+
+                entry_notional_quote += executor_entry_notional
+                collateral_used_quote += executor_entry_notional / leverage
+                weighted_leverage += executor_entry_notional * leverage
+
+            avg_leverage = weighted_leverage / entry_notional_quote if entry_notional_quote > 0 else 1.0
+
             # Use pnl_timeseries for drawdown/sharpe if available (includes position PnL)
             if pnl_timeseries and len(pnl_timeseries) > 1:
                 pnl_series = pd.Series([p["total_pnl"] for p in pnl_timeseries])
@@ -598,10 +626,19 @@ class BacktestingEngineBase:
                 sharpe_ratio = 0
 
             net_pnl_pct = net_pnl_quote / float(total_amount_quote)
+            return_on_entry_notional = net_pnl_quote / entry_notional_quote if entry_notional_quote > 0 else 0
+            return_on_collateral_used = net_pnl_quote / collateral_used_quote if collateral_used_quote > 0 else 0
 
             return {
                 "net_pnl": float(net_pnl_pct),
                 "net_pnl_quote": float(net_pnl_quote),
+                "collateral_amount_quote": float(total_amount_quote),
+                "total_entry_notional_quote": float(entry_notional_quote),
+                "total_collateral_used_quote": float(collateral_used_quote),
+                "return_on_entry_notional": float(return_on_entry_notional),
+                "return_on_collateral_used": float(return_on_collateral_used),
+                "avg_leverage": float(avg_leverage),
+                "max_leverage": float(max_leverage),
                 "total_executors": int(total_executors),
                 "total_executors_with_position": int(total_executors_with_position),
                 "total_volume": float(total_volume),
@@ -625,6 +662,13 @@ class BacktestingEngineBase:
         return {
             "net_pnl": 0,
             "net_pnl_quote": 0,
+            "collateral_amount_quote": float(total_amount_quote),
+            "total_entry_notional_quote": 0,
+            "total_collateral_used_quote": 0,
+            "return_on_entry_notional": 0,
+            "return_on_collateral_used": 0,
+            "avg_leverage": 1,
+            "max_leverage": 1,
             "total_executors": 0,
             "total_executors_with_position": 0,
             "total_volume": 0,
