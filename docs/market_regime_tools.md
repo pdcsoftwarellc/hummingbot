@@ -34,14 +34,31 @@ strategy research.
   - S3 is requester-pays and published monthly; latest checked archive spans
     `2023-05-20` through `2026-06-01`.
 
+- `scripts/merge_hyperliquid_context.py`
+  - Merges S3 context plus live collector context into one deduped CSV.
+  - SOL output: `data/context/hyperliquid_SOL_merged_context.csv`.
+  - Exact timestamp overlaps prefer live rows by default.
+
+- `scripts/refresh_hl_sol_context.sh`
+  - Finds the latest published S3 archive, refreshes S3 context, then rebuilds
+    the merged context CSV.
+
 - `scripts/install_hl_sol_context_service.sh`
   - Installs the macOS LaunchAgent for the SOL context collector.
   - Service label: `com.hyperion.hummingbot.hl-sol-context`.
   - Logs: `logs/hyperliquid_sol_context.out.log` and
     `logs/hyperliquid_sol_context.err.log`.
 
+- `scripts/install_hl_sol_context_refresh_service.sh`
+  - Installs the monthly macOS LaunchAgent for S3 catch-up plus merge.
+  - Service label: `com.hyperion.hummingbot.hl-sol-context-refresh`.
+  - Runs on day 3 monthly at 06:15 local time.
+
 - `scripts/uninstall_hl_sol_context_service.sh`
   - Stops and removes the LaunchAgent.
+
+- `scripts/uninstall_hl_sol_context_refresh_service.sh`
+  - Stops and removes the monthly refresh LaunchAgent.
 
 - `scripts/backfill_market_regimes.py`
   - Fetches OHLCV candles, caches raw candles under `data/candles/`, labels each
@@ -81,6 +98,7 @@ strategy research.
 - Hyperliquid S3 context: SOL `asset_ctxs`, `2023-05-20` through `2026-06-01`.
 - Forward collector: fills live Hyperliquid SOL context from its start time
   onward into `data/context/hyperliquid_SOL_context.csv`.
+- Canonical context input: `data/context/hyperliquid_SOL_merged_context.csv`.
 - Labeled dataset: 5y Binance proxy candles plus `context_available` flags;
   26,382 of 43,800 hourly rows currently have Hyperliquid context.
 
@@ -94,10 +112,20 @@ strategy research.
 - The collector does not backfill missed history. It only protects the gap from
   "now" until the next S3 archive is available.
 
+## Monthly S3 Refresh
+
+- Install: `scripts/install_hl_sol_context_refresh_service.sh`
+- Stop/remove: `scripts/uninstall_hl_sol_context_refresh_service.sh`
+- Manual run: `scripts/refresh_hl_sol_context.sh`
+- Watch output: `tail -f logs/hyperliquid_sol_context_refresh.out.log`
+- Merged CSV: `data/context/hyperliquid_SOL_merged_context.csv`
+- Use this merged CSV as `--context-csv` for regime backfills once live context
+  exists.
+
 ## S3 Backfill
 
 - Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2023-05-20 --end 2026-06-01`
-- Label with context: add `--context-csv data/context/hyperliquid_SOL_s3_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
+- Label with context: add `--context-csv data/context/hyperliquid_SOL_merged_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
 - Current SOL S3 context covers `2023-05-20` through `2026-06-01`.
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
@@ -114,8 +142,9 @@ strategy research.
 - Pre-`2023-05-20`: no Hyperliquid S3 context found; use price-only regimes.
 - `2026-06-02` through collector start: waiting on the June S3 archive.
 - Current month: forward collector covers live context until S3 catches up.
-- Still needed for strategy work: merge/dedupe S3 plus live context, schedule a
-  monthly S3 refresh, and wire regime outputs into an actual controller policy.
+- Still needed for strategy work: wire regime outputs into an actual controller
+  policy and backtest PnL with collateral, leverage, funding, fees, slippage,
+  and liquidation assumptions.
 
 ## Key Reminder
 

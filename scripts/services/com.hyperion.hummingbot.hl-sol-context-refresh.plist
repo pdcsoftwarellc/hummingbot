@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hyperion.hummingbot.hl-sol-context-refresh</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd __REPO_DIR__ &amp;&amp; CONDA_BIN=__CONDA_BIN__ AWS_BIN=__AWS_BIN__ scripts/refresh_hl_sol_context.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Day</key>
+    <integer>3</integer>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__REPO_DIR__/logs/hyperliquid_sol_context_refresh.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__REPO_DIR__/logs/hyperliquid_sol_context_refresh.err.log</string>
+</dict>
+</plist>
