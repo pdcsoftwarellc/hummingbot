@@ -27,6 +27,13 @@ strategy research.
   - Fields include funding, premium, OI, OI change, mark/oracle/mid, spread, and
     bid/ask/depth USD.
 
+- `scripts/backfill_hyperliquid_s3_context.py`
+  - Backfills Hyperliquid S3 `asset_ctxs` history into the same context schema.
+  - Cached archives live under `data/s3/hyperliquid/asset_ctxs/`.
+  - SOL output: `data/context/hyperliquid_SOL_s3_context.csv`.
+  - S3 is requester-pays and published monthly; latest checked archive ended
+    `2026-06-01`.
+
 - `scripts/install_hl_sol_context_service.sh`
   - Installs the macOS LaunchAgent for the SOL context collector.
   - Service label: `com.hyperion.hummingbot.hl-sol-context`.
@@ -69,6 +76,12 @@ strategy research.
 - Check service: `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-context`
 - Watch output: `tail -f logs/hyperliquid_sol_context.out.log`
 - Context CSV: `data/context/hyperliquid_SOL_context.csv`
+
+## S3 Backfill
+
+- Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2025-12-03 --end 2026-06-01`
+- Label with context: add `--context-csv data/context/hyperliquid_SOL_s3_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
+- Current SOL S3 cache has one partial archive day: `2026-05-30` had 418 rows.
 
 ## Key Reminder
 
