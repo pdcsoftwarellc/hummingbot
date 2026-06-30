@@ -84,10 +84,12 @@ strategy research.
 
 ## S3 Backfill
 
-- Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2025-12-03 --end 2026-06-01`
+- Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2024-06-02 --end 2026-06-01`
 - Label with context: add `--context-csv data/context/hyperliquid_SOL_s3_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
-- Current SOL S3 cache has one partial archive day: `2026-05-30` had 418 rows.
+- Current SOL S3 context covers `2024-06-02` through `2026-06-01`.
+- The archive is not perfectly minute-complete; worst known SOL day is
+  `2026-05-30` with 418 rows.
 - Latest SOL map tuning made labels stricter, moved more rows to no-trade/high-vol
   danger, and lowered funding-extreme sensitivity so HL context can reduce risk.
 
