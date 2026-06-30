@@ -40,6 +40,7 @@ strategy research.
   - Exact timestamp overlaps prefer live rows by default.
 
 - `scripts/refresh_hl_sol_context.sh`
+  - Optional catch-up/recovery helper.
   - Finds the latest published S3 archive, refreshes S3 context, then rebuilds
     the merged context CSV.
 
@@ -50,7 +51,7 @@ strategy research.
     `logs/hyperliquid_sol_context.err.log`.
 
 - `scripts/install_hl_sol_context_refresh_service.sh`
-  - Installs the monthly macOS LaunchAgent for S3 catch-up plus merge.
+  - Installs an optional monthly macOS LaunchAgent for S3 catch-up plus merge.
   - Service label: `com.hyperion.hummingbot.hl-sol-context-refresh`.
   - Runs on day 3 monthly at 06:15 local time.
 
@@ -99,6 +100,8 @@ strategy research.
 - Forward collector: fills live Hyperliquid SOL context from its start time
   onward into `data/context/hyperliquid_SOL_context.csv`.
 - Canonical context input: `data/context/hyperliquid_SOL_merged_context.csv`.
+- Normal maintenance path: keep the forward collector running, then rerun the
+  merge before research/backtests.
 - Labeled dataset: 5y Binance proxy candles plus `context_available` flags;
   26,382 of 43,800 hourly rows currently have Hyperliquid context.
 
@@ -109,18 +112,22 @@ strategy research.
 - Check service: `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-context`
 - Watch output: `tail -f logs/hyperliquid_sol_context.out.log`
 - Context CSV: `data/context/hyperliquid_SOL_context.csv`
-- The collector does not backfill missed history. It only protects the gap from
-  "now" until the next S3 archive is available.
+- The collector does not backfill missed history. It protects the dataset from
+  its start time forward.
+- Before research/backtests, rerun `scripts/merge_hyperliquid_context.py` so the
+  merged context CSV includes the latest collector rows.
 
-## Monthly S3 Refresh
+## Optional S3 Catch-Up
 
-- Install: `scripts/install_hl_sol_context_refresh_service.sh`
+- Not required for normal forward collection if the collector stays running.
+- Use this when S3 publishes a missing archive month, or if the collector was
+  down and you want to recover history from the archive.
+- Optional install: `scripts/install_hl_sol_context_refresh_service.sh`
 - Stop/remove: `scripts/uninstall_hl_sol_context_refresh_service.sh`
 - Manual run: `scripts/refresh_hl_sol_context.sh`
 - Watch output: `tail -f logs/hyperliquid_sol_context_refresh.out.log`
 - Merged CSV: `data/context/hyperliquid_SOL_merged_context.csv`
-- Use this merged CSV as `--context-csv` for regime backfills once live context
-  exists.
+- Use the merged CSV as `--context-csv` for regime backfills.
 
 ## S3 Backfill
 
@@ -140,8 +147,9 @@ strategy research.
 ## Gaps
 
 - Pre-`2023-05-20`: no Hyperliquid S3 context found; use price-only regimes.
-- `2026-06-02` through collector start: waiting on the June S3 archive.
-- Current month: forward collector covers live context until S3 catches up.
+- `2026-06-02` through collector start: only recoverable if the June S3 archive
+  fills it later.
+- Current and future data: forward collector is enough as long as it stays up.
 - Still needed for strategy work: wire regime outputs into an actual controller
   policy and backtest PnL with collateral, leverage, funding, fees, slippage,
   and liquidation assumptions.
