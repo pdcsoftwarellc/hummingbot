@@ -31,8 +31,8 @@ strategy research.
   - Backfills Hyperliquid S3 `asset_ctxs` history into the same context schema.
   - Cached archives live under `data/s3/hyperliquid/asset_ctxs/`.
   - SOL output: `data/context/hyperliquid_SOL_s3_context.csv`.
-  - S3 is requester-pays and published monthly; latest checked archive ended
-    `2026-06-01`.
+  - S3 is requester-pays and published monthly; latest checked archive spans
+    `2023-05-20` through `2026-06-01`.
 
 - `scripts/install_hl_sol_context_service.sh`
   - Installs the macOS LaunchAgent for the SOL context collector.
@@ -84,16 +84,16 @@ strategy research.
 
 ## S3 Backfill
 
-- Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2023-06-03 --end 2026-06-01`
+- Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2023-05-20 --end 2026-06-01`
 - Label with context: add `--context-csv data/context/hyperliquid_SOL_s3_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
-- Current SOL S3 context covers `2023-06-03` through `2026-06-01`.
-- Current cache has 1,095 archive days and 1,553,914 SOL rows.
-- The archive is not perfectly minute-uniform: 853 days have exactly 1,440 rows,
-  195 days are below, and 47 days are above. Worst known low day is `2026-05-30`
+- Current SOL S3 context covers `2023-05-20` through `2026-06-01`.
+- Current cache has 1,109 archive days and 1,573,887 SOL rows.
+- The archive is not perfectly minute-uniform: 858 days have exactly 1,440 rows,
+  199 days are below, and 52 days are above. Worst known low day is `2026-05-30`
   with 418 rows.
-- The 5y Binance SOL proxy regime file has 26,049 context-matched hourly rows,
-  from `2023-06-03 00:00 UTC` through `2026-06-02 00:00 UTC`.
+- The 5y Binance SOL proxy regime file has 26,382 context-matched hourly rows,
+  from `2023-05-20 03:00 UTC` through `2026-06-02 00:00 UTC`.
 - Latest SOL map tuning made labels stricter, moved more rows to no-trade/high-vol
   danger, and lowered funding-extreme sensitivity so HL context can reduce risk.
 
