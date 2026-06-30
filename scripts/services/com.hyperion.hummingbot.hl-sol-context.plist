@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hyperion.hummingbot.hl-sol-context</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd __REPO_DIR__ &amp;&amp; __CONDA_BIN__ run --no-capture-output -n hummingbot python scripts/collect_hyperliquid_context.py --coin SOL --output data/context/hyperliquid_SOL_context.csv --interval-seconds 60</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__REPO_DIR__/logs/hyperliquid_sol_context.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__REPO_DIR__/logs/hyperliquid_sol_context.err.log</string>
+</dict>
+</plist>

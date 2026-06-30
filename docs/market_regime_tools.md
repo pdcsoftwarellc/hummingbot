@@ -21,6 +21,21 @@ strategy research.
     liquidations into the detector's `MarketContext`.
   - Includes SOL 1h defaults via `MarketContextBuilder.sol_1h()`.
 
+- `scripts/collect_hyperliquid_context.py`
+  - Forward-collects public Hyperliquid SOL context every minute.
+  - Writes `data/context/hyperliquid_SOL_context.csv`.
+  - Fields include funding, premium, OI, OI change, mark/oracle/mid, spread, and
+    bid/ask/depth USD.
+
+- `scripts/install_hl_sol_context_service.sh`
+  - Installs the macOS LaunchAgent for the SOL context collector.
+  - Service label: `com.hyperion.hummingbot.hl-sol-context`.
+  - Logs: `logs/hyperliquid_sol_context.out.log` and
+    `logs/hyperliquid_sol_context.err.log`.
+
+- `scripts/uninstall_hl_sol_context_service.sh`
+  - Stops and removes the LaunchAgent.
+
 - `scripts/backfill_market_regimes.py`
   - Fetches OHLCV candles, caches raw candles under `data/candles/`, labels each
     row with the detector, and writes labeled CSVs under `data/regimes/`.
@@ -46,6 +61,14 @@ strategy research.
 3. Label candles with a generic detector plus a market preset.
 4. Analyze labels with `scripts/analyze_market_regimes.py`.
 5. Use the findings to design a Strategy V2 controller policy.
+
+## Running Collector
+
+- Start/reload: `scripts/install_hl_sol_context_service.sh`
+- Stop/remove: `scripts/uninstall_hl_sol_context_service.sh`
+- Check service: `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-context`
+- Watch output: `tail -f logs/hyperliquid_sol_context.out.log`
+- Context CSV: `data/context/hyperliquid_SOL_context.csv`
 
 ## Key Reminder
 
