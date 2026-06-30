@@ -74,6 +74,16 @@ strategy research.
 4. Analyze labels with `scripts/analyze_market_regimes.py`.
 5. Use the findings to design a Strategy V2 controller policy.
 
+## Current Data Map
+
+- Price proxy: Binance perpetual `SOL-USDT` 1h candles, `2021-07-01` through
+  `2026-06-30`.
+- Hyperliquid S3 context: SOL `asset_ctxs`, `2023-05-20` through `2026-06-01`.
+- Forward collector: fills live Hyperliquid SOL context from its start time
+  onward into `data/context/hyperliquid_SOL_context.csv`.
+- Labeled dataset: 5y Binance proxy candles plus `context_available` flags;
+  26,382 of 43,800 hourly rows currently have Hyperliquid context.
+
 ## Running Collector
 
 - Start/reload: `scripts/install_hl_sol_context_service.sh`
@@ -81,6 +91,8 @@ strategy research.
 - Check service: `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-context`
 - Watch output: `tail -f logs/hyperliquid_sol_context.out.log`
 - Context CSV: `data/context/hyperliquid_SOL_context.csv`
+- The collector does not backfill missed history. It only protects the gap from
+  "now" until the next S3 archive is available.
 
 ## S3 Backfill
 
@@ -96,6 +108,14 @@ strategy research.
   from `2023-05-20 03:00 UTC` through `2026-06-02 00:00 UTC`.
 - Latest SOL map tuning made labels stricter, moved more rows to no-trade/high-vol
   danger, and lowered funding-extreme sensitivity so HL context can reduce risk.
+
+## Gaps
+
+- Pre-`2023-05-20`: no Hyperliquid S3 context found; use price-only regimes.
+- `2026-06-02` through collector start: waiting on the June S3 archive.
+- Current month: forward collector covers live context until S3 catches up.
+- Still needed for strategy work: merge/dedupe S3 plus live context, schedule a
+  monthly S3 refresh, and wire regime outputs into an actual controller policy.
 
 ## Key Reminder
 
