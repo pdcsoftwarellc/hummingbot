@@ -321,8 +321,10 @@ def label_candles(
     for index in range(len(labeled)):
         window = labeled.iloc[max(0, index + 1 - window_size):index + 1]
         timestamp = int(labeled.loc[index, "timestamp"])
-        report = detector.classify(window, contexts_by_timestamp.get(timestamp))
+        context = contexts_by_timestamp.get(timestamp)
+        report = detector.classify(window, context)
         row = {
+            "context_available": context is not None,
             "regime_label": report.label.value,
             "regime_action": report.action.value,
             "grid_bias": report.grid_bias.value,
