@@ -32,7 +32,8 @@ except ImportError:
 from hummingbot.data_feed.candles_feed.candles_base import CandlesBase  # noqa: E402
 from hummingbot.data_feed.candles_feed.candles_factory import CandlesFactory  # noqa: E402
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, HistoricalCandlesConfig  # noqa: E402
-from hummingbot.strategy_v2.utils.market_regime import MarketRegimeConfigModel, MarketRegimeDetector  # noqa: E402
+from hummingbot.strategy_v2.utils.market_regime import MarketContext, MarketRegimeConfigModel, MarketRegimeDetector  # noqa: E402
+from hummingbot.strategy_v2.utils.market_regime_context import MarketContextBuilder  # noqa: E402
 
 
 DEFAULT_FEATURE_COLUMNS = [
@@ -48,6 +49,19 @@ DEFAULT_FEATURE_COLUMNS = [
     "distance_from_trend_mean_atr",
     "breakout_distance_pct",
     "breakdown_distance_pct",
+    "liquidity_score",
+    "liquidity_bad",
+    "crowding_score",
+    "nearest_liquidation_distance_pct",
+    "liquidation_pressure_score",
+    "funding_rate",
+    "funding_extreme",
+    "liquidity_thin",
+    "liquidation_flush_score",
+    "liquidation_flush_direction",
+    "post_liquidation_flush",
+    "squeeze_risk",
+    "high_vol_danger",
 ]
 
 
@@ -65,6 +79,25 @@ def normalize_candles(candles: pd.DataFrame) -> pd.DataFrame:
     candles["timestamp"] = candles["timestamp"].astype(float).astype(int)
     candles = candles.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
     return candles
+
+
+def normalize_timestamp_column(frame: pd.DataFrame) -> pd.DataFrame:
+    frame = frame.copy()
+    if "timestamp" not in frame.columns:
+        raise ValueError("context CSV must include a timestamp column")
+    raw_timestamp = frame["timestamp"].astype(str).str.strip()
+    numeric_timestamp = pd.to_numeric(frame["timestamp"], errors="coerce")
+    if numeric_timestamp.notna().all() and raw_timestamp.str.fullmatch(r"\d+(\.\d+)?").all():
+        frame["timestamp"] = numeric_timestamp.astype(float).astype(int)
+        return frame
+
+    parsed_timestamp = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
+    if parsed_timestamp.isna().any():
+        bad_count = int(parsed_timestamp.isna().sum())
+        raise ValueError(f"context CSV has {bad_count} invalid timestamp values")
+    epoch_start = pd.Timestamp("1970-01-01", tz="UTC")
+    frame["timestamp"] = (parsed_timestamp - epoch_start).dt.total_seconds().astype(int)
+    return frame
 
 
 def iso_to_epoch_seconds(value: Optional[str]) -> Optional[int]:
@@ -237,13 +270,58 @@ def build_detector(args: argparse.Namespace) -> MarketRegimeDetector:
     return MarketRegimeDetector(config_model.to_detector_config())
 
 
-def label_candles(candles: pd.DataFrame, detector: MarketRegimeDetector) -> pd.DataFrame:
+def build_context_builder(name: str) -> MarketContextBuilder:
+    if name == "sol_1h":
+        return MarketContextBuilder.sol_1h()
+    if name == "generic":
+        return MarketContextBuilder()
+    raise ValueError(f"Unsupported context builder: {name}")
+
+
+def load_context_by_timestamp(
+    path: Optional[str],
+    builder: MarketContextBuilder,
+    candle_timestamps: pd.Series,
+    max_staleness_seconds: Optional[int],
+) -> Dict[int, MarketContext]:
+    if path is None:
+        return {}
+    context_df = normalize_timestamp_column(pd.read_csv(path))
+    context_df = context_df.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
+    if context_df.empty:
+        return {}
+
+    candle_df = pd.DataFrame({"timestamp": candle_timestamps.astype(int)}).sort_values("timestamp").reset_index(drop=True)
+    merged = pd.merge_asof(
+        candle_df,
+        context_df,
+        on="timestamp",
+        direction="backward",
+        tolerance=max_staleness_seconds,
+    )
+
+    contexts: Dict[int, MarketContext] = {}
+    context_columns = [column for column in merged.columns if column != "timestamp"]
+    for _, row in merged.iterrows():
+        if not context_columns or row[context_columns].isna().all():
+            continue
+        contexts[int(row["timestamp"])] = builder.build_from_mapping(row.to_dict())
+    return contexts
+
+
+def label_candles(
+    candles: pd.DataFrame,
+    detector: MarketRegimeDetector,
+    contexts_by_timestamp: Optional[Dict[int, MarketContext]] = None,
+) -> pd.DataFrame:
     labeled = candles.copy().sort_values("timestamp").reset_index(drop=True)
+    contexts_by_timestamp = contexts_by_timestamp or {}
     reports: List[Dict[str, object]] = []
     window_size = detector.config.min_records
     for index in range(len(labeled)):
         window = labeled.iloc[max(0, index + 1 - window_size):index + 1]
-        report = detector.classify(window)
+        timestamp = int(labeled.loc[index, "timestamp"])
+        report = detector.classify(window, contexts_by_timestamp.get(timestamp))
         row = {
             "regime_label": report.label.value,
             "regime_action": report.action.value,
@@ -336,7 +414,25 @@ async def main(args: argparse.Namespace):
     detector = build_detector(args)
     if args.regime_config:
         print(f"  Regime config: {args.regime_config}")
-    labeled = label_candles(candles, detector)
+
+    contexts_by_timestamp = {}
+    if args.context_csv:
+        max_staleness_seconds = args.context_max_staleness_seconds
+        if max_staleness_seconds is None:
+            max_staleness_seconds = interval_seconds
+        context_builder = build_context_builder(args.context_builder)
+        print(f"  Context CSV: {args.context_csv}")
+        print(f"  Context builder: {args.context_builder}")
+        print(f"  Context max staleness: {max_staleness_seconds}s")
+        contexts_by_timestamp = load_context_by_timestamp(
+            path=args.context_csv,
+            builder=context_builder,
+            candle_timestamps=candles["timestamp"],
+            max_staleness_seconds=max_staleness_seconds,
+        )
+        print(f"  Context-matched rows: {len(contexts_by_timestamp)}")
+
+    labeled = label_candles(candles, detector, contexts_by_timestamp)
 
     output_path = args.output or os.path.join(
         "data",
@@ -367,6 +463,20 @@ if __name__ == "__main__":
     parser.add_argument("--end", type=str, default=None, help="ISO timestamp or epoch seconds")
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--regime-config", type=str, default=None, help="YAML/JSON detector config preset")
+    parser.add_argument("--context-csv", type=str, default=None, help="Optional CSV with timestamped market context")
+    parser.add_argument(
+        "--context-builder",
+        type=str,
+        default="sol_1h",
+        choices=["generic", "sol_1h"],
+        help="Market context normalization preset used with --context-csv",
+    )
+    parser.add_argument(
+        "--context-max-staleness-seconds",
+        type=int,
+        default=None,
+        help="Maximum age for as-of context matching. Defaults to one candle interval.",
+    )
     parser.add_argument("--candles-cache", type=str, default=None, help="Raw candle cache path")
     parser.add_argument("--no-candles-cache", action="store_true", help="Fetch candles without reading/writing cache")
     parser.add_argument("--refresh-candles", action="store_true", help="Refetch requested candle range and merge cache")

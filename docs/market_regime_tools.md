@@ -24,6 +24,8 @@ strategy research.
 - `scripts/backfill_market_regimes.py`
   - Fetches OHLCV candles, caches raw candles under `data/candles/`, labels each
     row with the detector, and writes labeled CSVs under `data/regimes/`.
+  - Optional context flags: `--context-csv`, `--context-builder sol_1h`,
+    `--context-max-staleness-seconds`.
   - Useful for creating historical regime datasets before strategy work.
 
 - `scripts/analyze_market_regimes.py`
