@@ -8,6 +8,7 @@ Usage:
 """
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -15,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import pandas as pd
+import yaml
 
 # Ensure repo root is on the path when executed as a script.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -30,10 +32,7 @@ except ImportError:
 from hummingbot.data_feed.candles_feed.candles_base import CandlesBase  # noqa: E402
 from hummingbot.data_feed.candles_feed.candles_factory import CandlesFactory  # noqa: E402
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, HistoricalCandlesConfig  # noqa: E402
-from hummingbot.strategy_v2.utils.market_regime import (  # noqa: E402
-    MarketRegimeConfig,
-    MarketRegimeDetector,
-)
+from hummingbot.strategy_v2.utils.market_regime import MarketRegimeConfigModel, MarketRegimeDetector  # noqa: E402
 
 
 DEFAULT_FEATURE_COLUMNS = [
@@ -52,6 +51,22 @@ DEFAULT_FEATURE_COLUMNS = [
 ]
 
 
+def safe_market_file_name(connector: str, trading_pair: str, interval: str) -> str:
+    return f"{connector}_{trading_pair}_{interval}.csv".replace("/", "-")
+
+
+def normalize_candles(candles: pd.DataFrame) -> pd.DataFrame:
+    if candles.empty:
+        return candles
+    candles = candles.copy()
+    available_columns = [column for column in CandlesBase.columns if column in candles.columns]
+    candles[available_columns] = candles[available_columns].apply(pd.to_numeric, errors="coerce")
+    candles = candles.dropna(subset=["timestamp", "open", "high", "low", "close", "volume"])
+    candles["timestamp"] = candles["timestamp"].astype(float).astype(int)
+    candles = candles.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
+    return candles
+
+
 def iso_to_epoch_seconds(value: Optional[str]) -> Optional[int]:
     if value is None:
         return None
@@ -65,6 +80,10 @@ def iso_to_epoch_seconds(value: Optional[str]) -> Optional[int]:
 
 def epoch_to_utc(timestamp: int) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def default_candles_cache_path(connector: str, trading_pair: str, interval: str) -> str:
+    return os.path.join("data", "candles", safe_market_file_name(connector, trading_pair, interval))
 
 
 async def fetch_historical_candles(
@@ -90,8 +109,7 @@ async def fetch_historical_candles(
             start_time=start_time,
             end_time=end_time,
         ))
-        candles = candles.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
-        return candles
+        return normalize_candles(candles)
 
     interval_seconds = CandlesBase.interval_to_seconds[interval]
     chunk_records = min(chunk_records, candle.candles_max_result_per_rest_request)
@@ -116,18 +134,107 @@ async def fetch_historical_candles(
         candles = pd.concat(frames, ignore_index=True)
     else:
         candles = pd.DataFrame(columns=CandlesBase.columns)
-    candles = candles.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
-    return candles
+    return normalize_candles(candles)
+
+
+async def load_or_fetch_candles(
+    connector: str,
+    trading_pair: str,
+    interval: str,
+    start_time: int,
+    end_time: int,
+    max_records: int,
+    chunk_records: Optional[int],
+    cache_path: Optional[str],
+    no_cache: bool,
+    refresh_cache: bool,
+) -> pd.DataFrame:
+    interval_seconds = CandlesBase.interval_to_seconds[interval]
+    cached = pd.DataFrame()
+    if cache_path and not no_cache and os.path.exists(cache_path):
+        cached = normalize_candles(pd.read_csv(cache_path))
+        if not cached.empty:
+            print(
+                f"  Cache: {cache_path} "
+                f"({len(cached)} rows, {epoch_to_utc(int(cached['timestamp'].min()))} -> "
+                f"{epoch_to_utc(int(cached['timestamp'].max()))})"
+            )
+
+    fetch_ranges = []
+    if refresh_cache or cached.empty:
+        fetch_ranges.append((start_time, end_time))
+    else:
+        cached_start = int(cached["timestamp"].min())
+        cached_end = int(cached["timestamp"].max())
+        if cached_start > start_time:
+            fetch_ranges.append((start_time, min(end_time, cached_start - interval_seconds)))
+        if cached_end < end_time:
+            fetch_ranges.append((max(start_time, cached_end + interval_seconds), end_time))
+
+        requested_cached = cached[(cached["timestamp"] >= start_time) & (cached["timestamp"] <= end_time)]
+        if not requested_cached.empty and not (requested_cached["timestamp"].diff().dropna() == interval_seconds).all():
+            print("  Cache has internal gaps in the requested range; refreshing requested range.")
+            fetch_ranges = [(start_time, end_time)]
+
+    if cache_path and not no_cache and not fetch_ranges and not cached.empty:
+        print("  Cache covers requested range.")
+
+    fetched_frames = []
+    for fetch_start, fetch_end in fetch_ranges:
+        if fetch_start > fetch_end:
+            continue
+        print(f"  Fetching missing candles: {epoch_to_utc(fetch_start)} -> {epoch_to_utc(fetch_end)}")
+        fetched_frames.append(await fetch_historical_candles(
+            connector=connector,
+            trading_pair=trading_pair,
+            interval=interval,
+            start_time=fetch_start,
+            end_time=fetch_end,
+            max_records=max_records,
+            chunk_records=chunk_records,
+        ))
+
+    frames = [frame for frame in [cached, *fetched_frames] if not frame.empty]
+    if not frames:
+        return pd.DataFrame(columns=CandlesBase.columns)
+
+    merged = normalize_candles(pd.concat(frames, ignore_index=True))
+    cache_changed = any(not frame.empty for frame in fetched_frames)
+    if cache_path and not no_cache and cache_changed:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        merged.to_csv(cache_path, index=False)
+        print(
+            f"  Saved candle cache: {cache_path} "
+            f"({len(merged)} rows, {epoch_to_utc(int(merged['timestamp'].min()))} -> "
+            f"{epoch_to_utc(int(merged['timestamp'].max()))})"
+        )
+
+    return merged[(merged["timestamp"] >= start_time) & (merged["timestamp"] <= end_time)].reset_index(drop=True)
+
+
+def load_regime_config(path: Optional[str]) -> MarketRegimeConfigModel:
+    if path is None:
+        return MarketRegimeConfigModel()
+    with open(path) as file:
+        if path.endswith(".json"):
+            config_data = json.load(file) or {}
+        else:
+            config_data = yaml.safe_load(file) or {}
+    return MarketRegimeConfigModel(**config_data)
 
 
 def build_detector(args: argparse.Namespace) -> MarketRegimeDetector:
-    config = MarketRegimeConfig(
-        high_vol_atr_pct=args.high_vol_atr_pct,
-        high_vol_multiplier=args.high_vol_multiplier,
-        max_chop_range_width_pct=args.max_chop_range_width_pct,
-        min_trend_slope_pct=args.min_trend_slope_pct,
-    )
-    return MarketRegimeDetector(config)
+    config_model = load_regime_config(args.regime_config)
+    overrides = {
+        "high_vol_atr_pct": args.high_vol_atr_pct,
+        "high_vol_multiplier": args.high_vol_multiplier,
+        "max_chop_range_width_pct": args.max_chop_range_width_pct,
+        "min_trend_slope_pct": args.min_trend_slope_pct,
+    }
+    overrides = {key: value for key, value in overrides.items() if value is not None}
+    if overrides:
+        config_model = config_model.model_copy(update=overrides)
+    return MarketRegimeDetector(config_model.to_detector_config())
 
 
 def label_candles(candles: pd.DataFrame, detector: MarketRegimeDetector) -> pd.DataFrame:
@@ -198,12 +305,20 @@ async def main(args: argparse.Namespace):
     estimated_candles = int((end_time - start_time) / interval_seconds)
     max_records = max(args.max_records, estimated_candles + 1)
 
-    print(f"Fetching candles: {args.connector} {args.trading_pair} @ {args.interval}")
+    candles_cache_path = args.candles_cache or default_candles_cache_path(
+        args.connector,
+        args.trading_pair,
+        args.interval,
+    )
+
+    print(f"Preparing candles: {args.connector} {args.trading_pair} @ {args.interval}")
     print(f"  Start: {epoch_to_utc(start_time)}")
     print(f"  End:   {epoch_to_utc(end_time)}")
     print(f"  Estimated candles: {estimated_candles}")
+    if not args.no_candles_cache:
+        print(f"  Candle cache: {candles_cache_path}")
 
-    candles = await fetch_historical_candles(
+    candles = await load_or_fetch_candles(
         connector=args.connector,
         trading_pair=args.trading_pair,
         interval=args.interval,
@@ -211,11 +326,16 @@ async def main(args: argparse.Namespace):
         end_time=end_time,
         max_records=max_records,
         chunk_records=args.chunk_records,
+        cache_path=candles_cache_path,
+        no_cache=args.no_candles_cache,
+        refresh_cache=args.refresh_candles,
     )
     if candles.empty:
         raise RuntimeError("No candles returned for requested market/range")
 
     detector = build_detector(args)
+    if args.regime_config:
+        print(f"  Regime config: {args.regime_config}")
     labeled = label_candles(candles, detector)
 
     output_path = args.output or os.path.join(
@@ -246,6 +366,10 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=str, default=None, help="ISO timestamp or epoch seconds")
     parser.add_argument("--end", type=str, default=None, help="ISO timestamp or epoch seconds")
     parser.add_argument("--output", type=str, default=None)
+    parser.add_argument("--regime-config", type=str, default=None, help="YAML/JSON detector config preset")
+    parser.add_argument("--candles-cache", type=str, default=None, help="Raw candle cache path")
+    parser.add_argument("--no-candles-cache", action="store_true", help="Fetch candles without reading/writing cache")
+    parser.add_argument("--refresh-candles", action="store_true", help="Refetch requested candle range and merge cache")
     parser.add_argument("--max-records", type=int, default=500)
     parser.add_argument(
         "--chunk-records",
@@ -253,12 +377,12 @@ if __name__ == "__main__":
         default=None,
         help="Fetch forward in fixed-size REST chunks. Useful for long ranges that begin before market listing.",
     )
-    parser.add_argument("--high-vol-atr-pct", type=float, default=MarketRegimeConfig.high_vol_atr_pct)
-    parser.add_argument("--high-vol-multiplier", type=float, default=MarketRegimeConfig.high_vol_multiplier)
+    parser.add_argument("--high-vol-atr-pct", type=float, default=None)
+    parser.add_argument("--high-vol-multiplier", type=float, default=None)
     parser.add_argument(
         "--max-chop-range-width-pct",
         type=float,
-        default=MarketRegimeConfig.max_chop_range_width_pct,
+        default=None,
     )
-    parser.add_argument("--min-trend-slope-pct", type=float, default=MarketRegimeConfig.min_trend_slope_pct)
+    parser.add_argument("--min-trend-slope-pct", type=float, default=None)
     asyncio.run(main(parser.parse_args()))

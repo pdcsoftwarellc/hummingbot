@@ -1,0 +1,27 @@
+# SOL 1h regime detector preset for leveraged swing/grid research.
+range_lookback: 48
+trend_lookback: 18
+atr_length: 14
+realized_vol_length: 24
+acceptance_bars: 3
+boundary_touch_tolerance_pct: 0.003
+min_boundary_touches: 2
+max_chop_range_width_pct: 0.12
+min_trend_slope_pct: 0.006
+max_balanced_range_slope_pct: 0.05
+high_vol_atr_pct: 0.03
+high_vol_multiplier: 2.0
+min_liquidity_score: 0.2
+thin_liquidity_score: 0.5
+squeeze_crowding_threshold: 0.75
+squeeze_liquidation_distance_pct: 0.015
+pullback_atr_multiple: 0.75
+failed_breakout_min_distance_pct: 0.002
+trend_exhaustion_atr_multiple: 3.0
+trend_exhaustion_slope_pct: 0.08
+funding_extreme_rate: 0.001
+liquidation_flush_threshold: 0.7
+thin_liquidity_risk_multiplier: 0.5
+funding_extreme_risk_multiplier: 0.7
+failed_breakout_risk_multiplier: 0.5
+trend_exhaustion_risk_multiplier: 0.7

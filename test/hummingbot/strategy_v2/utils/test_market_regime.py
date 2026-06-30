@@ -6,6 +6,7 @@ from hummingbot.strategy_v2.utils.market_regime import (
     MarketContext,
     MarketRegime,
     MarketRegimeConfig,
+    MarketRegimeConfigModel,
     MarketRegimeDetector,
     MarketRegimeModifier,
 )
@@ -163,6 +164,26 @@ class TestMarketRegimeDetector(unittest.TestCase):
         self.assertEqual(MarketRegime.UPTREND, report.label)
         self.assertIn(MarketRegimeModifier.POST_LIQUIDATION_FLUSH, report.modifiers)
         self.assertEqual(1, report.features["liquidation_flush_direction"])
+
+    def test_config_model_builds_detector_config(self):
+        model = MarketRegimeConfigModel(
+            trend_lookback=18,
+            max_chop_range_width_pct=0.12,
+            min_trend_slope_pct=0.006,
+            high_vol_atr_pct=0.03,
+        )
+        config = model.to_detector_config()
+        self.assertIsInstance(config, MarketRegimeConfig)
+        self.assertEqual(18, config.trend_lookback)
+        self.assertEqual(0.12, config.max_chop_range_width_pct)
+        self.assertEqual(0.006, config.min_trend_slope_pct)
+        self.assertEqual(0.03, config.high_vol_atr_pct)
+
+    def test_config_model_round_trip_from_detector_config(self):
+        original = MarketRegimeConfig(trend_lookback=18, high_vol_atr_pct=0.03)
+        model = MarketRegimeConfigModel.from_detector_config(original)
+        restored = model.to_detector_config()
+        self.assertEqual(original, restored)
 
 
 if __name__ == "__main__":

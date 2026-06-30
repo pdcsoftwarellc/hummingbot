@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 import pandas as pd
+from pydantic import BaseModel, Field
 
 
 class MarketRegime(str, Enum):
@@ -81,6 +82,42 @@ class MarketRegimeConfig:
             self.atr_length * 2,
             self.realized_vol_length * 2,
         )
+
+
+class MarketRegimeConfigModel(BaseModel):
+    range_lookback: int = Field(default=48, json_schema_extra={"is_updatable": True})
+    trend_lookback: int = Field(default=24, json_schema_extra={"is_updatable": True})
+    atr_length: int = Field(default=14, json_schema_extra={"is_updatable": True})
+    realized_vol_length: int = Field(default=24, json_schema_extra={"is_updatable": True})
+    acceptance_bars: int = Field(default=3, json_schema_extra={"is_updatable": True})
+    boundary_touch_tolerance_pct: float = Field(default=0.003, json_schema_extra={"is_updatable": True})
+    min_boundary_touches: int = Field(default=2, json_schema_extra={"is_updatable": True})
+    max_chop_range_width_pct: float = Field(default=0.08, json_schema_extra={"is_updatable": True})
+    min_trend_slope_pct: float = Field(default=0.01, json_schema_extra={"is_updatable": True})
+    max_balanced_range_slope_pct: float = Field(default=0.03, json_schema_extra={"is_updatable": True})
+    high_vol_atr_pct: float = Field(default=0.035, json_schema_extra={"is_updatable": True})
+    high_vol_multiplier: float = Field(default=2.0, json_schema_extra={"is_updatable": True})
+    min_liquidity_score: float = Field(default=0.2, json_schema_extra={"is_updatable": True})
+    thin_liquidity_score: float = Field(default=0.5, json_schema_extra={"is_updatable": True})
+    squeeze_crowding_threshold: float = Field(default=0.75, json_schema_extra={"is_updatable": True})
+    squeeze_liquidation_distance_pct: float = Field(default=0.015, json_schema_extra={"is_updatable": True})
+    pullback_atr_multiple: float = Field(default=0.75, json_schema_extra={"is_updatable": True})
+    failed_breakout_min_distance_pct: float = Field(default=0.002, json_schema_extra={"is_updatable": True})
+    trend_exhaustion_atr_multiple: float = Field(default=3.0, json_schema_extra={"is_updatable": True})
+    trend_exhaustion_slope_pct: float = Field(default=0.08, json_schema_extra={"is_updatable": True})
+    funding_extreme_rate: float = Field(default=0.001, json_schema_extra={"is_updatable": True})
+    liquidation_flush_threshold: float = Field(default=0.7, json_schema_extra={"is_updatable": True})
+    thin_liquidity_risk_multiplier: float = Field(default=0.5, json_schema_extra={"is_updatable": True})
+    funding_extreme_risk_multiplier: float = Field(default=0.7, json_schema_extra={"is_updatable": True})
+    failed_breakout_risk_multiplier: float = Field(default=0.5, json_schema_extra={"is_updatable": True})
+    trend_exhaustion_risk_multiplier: float = Field(default=0.7, json_schema_extra={"is_updatable": True})
+
+    def to_detector_config(self) -> MarketRegimeConfig:
+        return MarketRegimeConfig(**self.model_dump())
+
+    @classmethod
+    def from_detector_config(cls, config: MarketRegimeConfig) -> "MarketRegimeConfigModel":
+        return cls(**config.__dict__)
 
 
 @dataclass
