@@ -55,6 +55,11 @@ strategy research.
   - Writes label, modifier, and long-vs-short outcome summaries under
     `data/regimes/analysis/`.
 
+- `scripts/sweep_market_regime_config.py`
+  - Fast threshold sweep using feature columns from a labeled regime CSV.
+  - Ranks SOL map candidates before doing a full backfill.
+  - Writes sweep results under `data/regimes/analysis/`.
+
 - `test/hummingbot/strategy_v2/utils/test_market_regime.py`
   - Unit coverage for detector behavior, modifiers, and config-model conversion.
 
@@ -83,6 +88,8 @@ strategy research.
 - Label with context: add `--context-csv data/context/hyperliquid_SOL_s3_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
 - Current SOL S3 cache has one partial archive day: `2026-05-30` had 418 rows.
+- Latest SOL map tuning made labels stricter, moved more rows to no-trade/high-vol
+  danger, and lowered funding-extreme sensitivity so HL context can reduce risk.
 
 ## Key Reminder
 
