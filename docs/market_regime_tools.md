@@ -16,6 +16,11 @@ strategy research.
   - SOL 1h threshold preset.
   - Keeps market-specific detector tuning out of the generic detector code.
 
+- `hummingbot/strategy_v2/utils/market_regime_context.py`
+  - Converts raw context inputs like funding, spread/depth, crowding, and
+    liquidations into the detector's `MarketContext`.
+  - Includes SOL 1h defaults via `MarketContextBuilder.sol_1h()`.
+
 - `scripts/backfill_market_regimes.py`
   - Fetches OHLCV candles, caches raw candles under `data/candles/`, labels each
     row with the detector, and writes labeled CSVs under `data/regimes/`.
@@ -29,12 +34,16 @@ strategy research.
 - `test/hummingbot/strategy_v2/utils/test_market_regime.py`
   - Unit coverage for detector behavior, modifiers, and config-model conversion.
 
+- `test/hummingbot/strategy_v2/utils/test_market_regime_context.py`
+  - Unit coverage for SOL context input normalization.
+
 ## Flow
 
 1. Cache/fetch candles with `scripts/backfill_market_regimes.py`.
-2. Label candles with a generic detector plus a market preset.
-3. Analyze labels with `scripts/analyze_market_regimes.py`.
-4. Use the findings to design a Strategy V2 controller policy.
+2. Build optional market context with `MarketContextBuilder.sol_1h()`.
+3. Label candles with a generic detector plus a market preset.
+4. Analyze labels with `scripts/analyze_market_regimes.py`.
+5. Use the findings to design a Strategy V2 controller policy.
 
 ## Key Reminder
 
