@@ -161,7 +161,7 @@ def main():
 
     output_path = args.output or default_output_path(args.coin)
     rows = []
-    short_days = {}
+    non_standard_days = {}
     previous_open_interest = None
     for day in date_range(args.start, args.end):
         print(f"Processing {day} {args.coin}", flush=True)
@@ -174,13 +174,13 @@ def main():
             day_count += 1
         print(f"  rows: {day_count}", flush=True)
         if day_count != 1440:
-            short_days[day.isoformat()] = day_count
+            non_standard_days[day.isoformat()] = day_count
 
     write_rows(output_path, rows)
     print(f"Wrote {len(rows)} rows to {output_path}", flush=True)
-    if short_days:
-        print("Short archive days:", flush=True)
-        for day, count in short_days.items():
+    if non_standard_days:
+        print("Non-standard archive days:", flush=True)
+        for day, count in non_standard_days.items():
             print(f"  {day}: {count} rows", flush=True)
 
 
