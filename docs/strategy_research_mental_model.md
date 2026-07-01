@@ -34,7 +34,8 @@ signals, or strategies.
 - Entry timing: Binance SOL-USDT 5m and 1m candles.
 - Perp context: Hyperliquid SOL funding, premium, open interest, mark/oracle,
   spread/depth where available.
-- Liquidity context: Hyperliquid S3 L2 1m features where backfilled.
+- Liquidity context: Hyperliquid S3 L2 1m features where backfilled, plus live
+  rich L2 rows once `collect_hyperliquid_l2_features.py` is running.
 
 ## Data We Have
 
@@ -44,10 +45,15 @@ signals, or strategies.
 - Hyperliquid SOL asset context: starts `2023-05-20`; S3 currently through
   `2026-06-01`, merged with live collector where available.
 - Hyperliquid SOL L2 feature sample: `2026-05-01` through `2026-06-01`.
+- Hyperliquid live rich L2 collector:
+  `data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv`, same schema
+  as S3 L2 feature backfills.
 
 ## Data We Still Want
 
-- True historical Hyperliquid trades for real CVD and aggressive flow.
+- True historical Hyperliquid trades for real CVD and aggressive flow. The
+  checked requester-pays S3 market-data path exposes `l2Book`; trade flow is
+  forward-collected from the live websocket instead.
 - Longer Hyperliquid L2 feature history if L2 filters prove useful.
 - Better liquidation-cluster data or heatmap data.
 - Native Hyperliquid candles at scale if we can avoid REST rate limits.
@@ -97,3 +103,25 @@ Current 1m research table:
   `high_volatility_danger`, `mixed` VWAP alignment, `high_expansion` volume,
   `0.25%` stop / `0.75%` take over `60` one-minute bars. It replays around
   `5` bps/day at `5x`, below target and not robust enough yet.
+
+Execution-aware pass:
+
+- Richer L2 script: `scripts/backfill_hyperliquid_s3_l2_features.py`
+  now adds depth bands, top-of-book depth, book-thinning, and estimated 10k/100k
+  taker slippage.
+- Live rich L2 script: `scripts/collect_hyperliquid_l2_features.py`
+  forward-fills that same spread/depth/imbalance/slippage schema from live
+  Hyperliquid `l2Book`.
+- Live trade flow: `scripts/collect_hyperliquid_trades.py` writes 1-minute
+  true CVD/aggressive-flow features from the Hyperliquid websocket.
+- Joined table hook: `scripts/build_joined_research_table.py` joins optional
+  `trade_*` flow columns when the collector CSV exists.
+- Execution replay: `scripts/simulate_research_candidates.py` can compare taker
+  vs maker-entry/taker-exit assumptions with configurable fees, slippage,
+  notional size, and passive fill checks.
+- First L2-rich sample:
+  `data/research/sol_1m_execution_research_20260501_20260602.csv`.
+  It has 46,080 rows, 99.88% L2 coverage, and no historical trade-flow coverage.
+- Early read: local May-June short continuation can reach roughly `13` bps/day
+  taker or `17` bps/day maker-entry at `5x`, but this is one month only and
+  still below the 25 bps/day target.

@@ -28,6 +28,7 @@ DEFAULT_CANDLES = "data/candles/binance_perpetual_SOL-USDT_5m.csv"
 DEFAULT_REGIME = "data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv"
 DEFAULT_CONTEXT = "data/context/hyperliquid_SOL_merged_context.csv"
 DEFAULT_L2 = "data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv"
+DEFAULT_TRADE_FLOW = "data/microstructure/hyperliquid_SOL_trades_1m.csv"
 DEFAULT_OUTPUT = "data/research/sol_5m_joined_research.csv"
 
 
@@ -134,19 +135,17 @@ def parse_stop_take_pairs(value: str) -> List[Tuple[float, float]]:
     return pairs
 
 
-def parse_optional_timestamp(value: Optional[str], end_of_day: bool = False) -> Optional[int]:
+def parse_optional_timestamp(value: Optional[str]) -> Optional[int]:
     if not value:
         return None
     parsed = pd.to_datetime(value, utc=True)
-    if end_of_day and parsed.time() == datetime.min.time():
-        parsed = parsed + pd.Timedelta(days=1)
     epoch_start = pd.Timestamp("1970-01-01", tz="UTC")
     return int((parsed - epoch_start).total_seconds())
 
 
 def filter_time_range(frame: pd.DataFrame, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
     start_timestamp = parse_optional_timestamp(start)
-    end_timestamp = parse_optional_timestamp(end, end_of_day=True)
+    end_timestamp = parse_optional_timestamp(end)
     filtered = frame
     if start_timestamp is not None:
         filtered = filtered[filtered["timestamp"] >= start_timestamp]
@@ -237,6 +236,28 @@ def merge_l2(base: pd.DataFrame, l2_csv: Optional[str], max_staleness_seconds: i
         tolerance=max_staleness_seconds,
     )
     merged["l2_available"] = merged["l2_l2_source_timestamp"].notna()
+    return merged.reset_index(drop=True)
+
+
+def merge_trade_flow(base: pd.DataFrame, trade_flow_csv: Optional[str], max_staleness_seconds: int) -> pd.DataFrame:
+    if trade_flow_csv is None or not os.path.exists(trade_flow_csv):
+        base["trade_flow_available"] = False
+        return base
+    trade_flow = load_frame(trade_flow_csv, "trade-flow CSV")
+    trade_flow["trade_flow_source_timestamp"] = trade_flow["timestamp"]
+    trade_flow = trade_flow.rename(columns={
+        column: f"trade_{column}"
+        for column in trade_flow.columns
+        if column != "timestamp"
+    })
+    merged = pd.merge_asof(
+        base.sort_values("timestamp"),
+        trade_flow.sort_values("timestamp"),
+        on="timestamp",
+        direction="backward",
+        tolerance=max_staleness_seconds,
+    )
+    merged["trade_flow_available"] = merged["trade_trade_flow_source_timestamp"].notna()
     return merged.reset_index(drop=True)
 
 
@@ -354,7 +375,7 @@ def summarize(frame: pd.DataFrame) -> str:
         f"First: {epoch_to_utc(int(frame['timestamp'].min()))}",
         f"Last:  {epoch_to_utc(int(frame['timestamp'].max()))}",
     ]
-    for column in ["regime_available", "context_available", "l2_available"]:
+    for column in ["regime_available", "context_available", "l2_available", "trade_flow_available"]:
         if column in frame.columns:
             count = int(frame[column].fillna(False).sum())
             lines.append(f"{column}: {count} ({count / len(frame):.2%})")
@@ -374,6 +395,7 @@ def parse_args():
     parser.add_argument("--regime-csv", default=DEFAULT_REGIME)
     parser.add_argument("--context-csv", default=DEFAULT_CONTEXT)
     parser.add_argument("--l2-csv", default=DEFAULT_L2)
+    parser.add_argument("--trade-flow-csv", default=DEFAULT_TRADE_FLOW)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
     parser.add_argument("--start", help="Optional inclusive candle start, e.g. 2024-01-01")
     parser.add_argument("--end", help="Optional exclusive candle end, e.g. 2026-07-01")
@@ -381,6 +403,7 @@ def parse_args():
     parser.add_argument("--regime-max-staleness-seconds", type=int, default=3900)
     parser.add_argument("--context-max-staleness-seconds", type=int, default=3600)
     parser.add_argument("--l2-max-staleness-seconds", type=int, default=300)
+    parser.add_argument("--trade-flow-max-staleness-seconds", type=int, default=300)
     parser.add_argument("--horizons", default="12,24,48", help="Forward outcome horizons in base candle bars")
     parser.add_argument("--stop-take-pairs", default="0.005:0.015,0.01:0.03,0.015:0.045")
     parser.add_argument("--ema-fast", type=int, default=20)
@@ -407,6 +430,7 @@ def main():
     )
     joined = merge_context(joined, args.context_csv, args.context_max_staleness_seconds)
     joined = merge_l2(joined, args.l2_csv, args.l2_max_staleness_seconds)
+    joined = merge_trade_flow(joined, args.trade_flow_csv, args.trade_flow_max_staleness_seconds)
 
     feature_config = MarketSignalFeatureConfig(
         ema_fast=args.ema_fast,

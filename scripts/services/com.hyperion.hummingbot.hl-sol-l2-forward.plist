@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hyperion.hummingbot.hl-sol-l2-forward</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd __REPO_DIR__ &amp;&amp; __CONDA_BIN__ run --no-capture-output -n hummingbot python scripts/collect_hyperliquid_l2_features.py --coin SOL --output data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv --interval-seconds 5</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__REPO_DIR__/logs/hyperliquid_sol_l2_forward.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__REPO_DIR__/logs/hyperliquid_sol_l2_forward.err.log</string>
+</dict>
+</plist>

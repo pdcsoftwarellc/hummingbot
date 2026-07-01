@@ -31,15 +31,47 @@ FIELDNAMES = [
     "mid_price",
     "spread",
     "spread_pct",
+    "spread_bps",
+    "mid_price_change_pct",
+    "depth_top5_change_pct",
     "mean_spread_pct",
     "max_spread_pct",
+    "bid_depth_top1_usd",
+    "ask_depth_top1_usd",
+    "depth_top1_usd",
+    "imbalance_top1",
+    "bid_depth_top3_usd",
+    "ask_depth_top3_usd",
+    "depth_top3_usd",
+    "imbalance_top3",
     "bid_depth_top5_usd",
     "ask_depth_top5_usd",
     "depth_top5_usd",
     "mean_depth_top5_usd",
     "min_depth_top5_usd",
+    "depth_top5_thin_ratio",
     "imbalance_top5",
     "mean_imbalance_top5",
+    "bid_depth_top10_usd",
+    "ask_depth_top10_usd",
+    "depth_top10_usd",
+    "imbalance_top10",
+    "bid_depth_5bps_usd",
+    "ask_depth_5bps_usd",
+    "depth_5bps_usd",
+    "imbalance_5bps",
+    "bid_depth_10bps_usd",
+    "ask_depth_10bps_usd",
+    "depth_10bps_usd",
+    "imbalance_10bps",
+    "bid_depth_25bps_usd",
+    "ask_depth_25bps_usd",
+    "depth_25bps_usd",
+    "imbalance_25bps",
+    "buy_10k_slippage_bps",
+    "sell_10k_slippage_bps",
+    "buy_100k_slippage_bps",
+    "sell_100k_slippage_bps",
 ]
 
 
@@ -53,10 +85,43 @@ class MinuteBucket:
     mid_price: Optional[float] = None
     spread: Optional[float] = None
     spread_pct: Optional[float] = None
+    spread_bps: Optional[float] = None
+    mid_price_change_pct: Optional[float] = None
+    depth_top5_change_pct: Optional[float] = None
+    bid_depth_top1_usd: Optional[float] = None
+    ask_depth_top1_usd: Optional[float] = None
+    depth_top1_usd: Optional[float] = None
+    imbalance_top1: Optional[float] = None
+    bid_depth_top3_usd: Optional[float] = None
+    ask_depth_top3_usd: Optional[float] = None
+    depth_top3_usd: Optional[float] = None
+    imbalance_top3: Optional[float] = None
     bid_depth_top5_usd: Optional[float] = None
     ask_depth_top5_usd: Optional[float] = None
     depth_top5_usd: Optional[float] = None
     imbalance_top5: Optional[float] = None
+    bid_depth_top10_usd: Optional[float] = None
+    ask_depth_top10_usd: Optional[float] = None
+    depth_top10_usd: Optional[float] = None
+    imbalance_top10: Optional[float] = None
+    bid_depth_5bps_usd: Optional[float] = None
+    ask_depth_5bps_usd: Optional[float] = None
+    depth_5bps_usd: Optional[float] = None
+    imbalance_5bps: Optional[float] = None
+    bid_depth_10bps_usd: Optional[float] = None
+    ask_depth_10bps_usd: Optional[float] = None
+    depth_10bps_usd: Optional[float] = None
+    imbalance_10bps: Optional[float] = None
+    bid_depth_25bps_usd: Optional[float] = None
+    ask_depth_25bps_usd: Optional[float] = None
+    depth_25bps_usd: Optional[float] = None
+    imbalance_25bps: Optional[float] = None
+    buy_10k_slippage_bps: Optional[float] = None
+    sell_10k_slippage_bps: Optional[float] = None
+    buy_100k_slippage_bps: Optional[float] = None
+    sell_100k_slippage_bps: Optional[float] = None
+    first_mid_price: Optional[float] = None
+    first_depth_top5_usd: Optional[float] = None
     spread_pct_values: List[float] = field(default_factory=list)
     depth_top5_values: List[float] = field(default_factory=list)
     imbalance_top5_values: List[float] = field(default_factory=list)
@@ -69,12 +134,47 @@ class MinuteBucket:
             "mid_price",
             "spread",
             "spread_pct",
+            "spread_bps",
+            "bid_depth_top1_usd",
+            "ask_depth_top1_usd",
+            "depth_top1_usd",
+            "imbalance_top1",
+            "bid_depth_top3_usd",
+            "ask_depth_top3_usd",
+            "depth_top3_usd",
+            "imbalance_top3",
             "bid_depth_top5_usd",
             "ask_depth_top5_usd",
             "depth_top5_usd",
             "imbalance_top5",
+            "bid_depth_top10_usd",
+            "ask_depth_top10_usd",
+            "depth_top10_usd",
+            "imbalance_top10",
+            "bid_depth_5bps_usd",
+            "ask_depth_5bps_usd",
+            "depth_5bps_usd",
+            "imbalance_5bps",
+            "bid_depth_10bps_usd",
+            "ask_depth_10bps_usd",
+            "depth_10bps_usd",
+            "imbalance_10bps",
+            "bid_depth_25bps_usd",
+            "ask_depth_25bps_usd",
+            "depth_25bps_usd",
+            "imbalance_25bps",
+            "buy_10k_slippage_bps",
+            "sell_10k_slippage_bps",
+            "buy_100k_slippage_bps",
+            "sell_100k_slippage_bps",
         ]:
             setattr(self, key, features[key])
+        if self.first_mid_price is None:
+            self.first_mid_price = features["mid_price"]
+        if self.first_depth_top5_usd is None:
+            self.first_depth_top5_usd = features["depth_top5_usd"]
+        self.mid_price_change_pct = pct_change(self.first_mid_price, self.mid_price)
+        self.depth_top5_change_pct = pct_change(self.first_depth_top5_usd, self.depth_top5_usd)
         if features["spread_pct"] is not None:
             self.spread_pct_values.append(features["spread_pct"])
         if features["depth_top5_usd"] is not None:
@@ -93,15 +193,50 @@ class MinuteBucket:
             "mid_price": self.mid_price,
             "spread": self.spread,
             "spread_pct": self.spread_pct,
+            "spread_bps": self.spread_bps,
+            "mid_price_change_pct": self.mid_price_change_pct,
+            "depth_top5_change_pct": self.depth_top5_change_pct,
             "mean_spread_pct": mean(self.spread_pct_values),
             "max_spread_pct": max(self.spread_pct_values) if self.spread_pct_values else None,
+            "bid_depth_top1_usd": self.bid_depth_top1_usd,
+            "ask_depth_top1_usd": self.ask_depth_top1_usd,
+            "depth_top1_usd": self.depth_top1_usd,
+            "imbalance_top1": self.imbalance_top1,
+            "bid_depth_top3_usd": self.bid_depth_top3_usd,
+            "ask_depth_top3_usd": self.ask_depth_top3_usd,
+            "depth_top3_usd": self.depth_top3_usd,
+            "imbalance_top3": self.imbalance_top3,
             "bid_depth_top5_usd": self.bid_depth_top5_usd,
             "ask_depth_top5_usd": self.ask_depth_top5_usd,
             "depth_top5_usd": self.depth_top5_usd,
             "mean_depth_top5_usd": mean(self.depth_top5_values),
             "min_depth_top5_usd": min(self.depth_top5_values) if self.depth_top5_values else None,
+            "depth_top5_thin_ratio": safe_divide(
+                min(self.depth_top5_values) if self.depth_top5_values else None,
+                mean(self.depth_top5_values),
+            ),
             "imbalance_top5": self.imbalance_top5,
             "mean_imbalance_top5": mean(self.imbalance_top5_values),
+            "bid_depth_top10_usd": self.bid_depth_top10_usd,
+            "ask_depth_top10_usd": self.ask_depth_top10_usd,
+            "depth_top10_usd": self.depth_top10_usd,
+            "imbalance_top10": self.imbalance_top10,
+            "bid_depth_5bps_usd": self.bid_depth_5bps_usd,
+            "ask_depth_5bps_usd": self.ask_depth_5bps_usd,
+            "depth_5bps_usd": self.depth_5bps_usd,
+            "imbalance_5bps": self.imbalance_5bps,
+            "bid_depth_10bps_usd": self.bid_depth_10bps_usd,
+            "ask_depth_10bps_usd": self.ask_depth_10bps_usd,
+            "depth_10bps_usd": self.depth_10bps_usd,
+            "imbalance_10bps": self.imbalance_10bps,
+            "bid_depth_25bps_usd": self.bid_depth_25bps_usd,
+            "ask_depth_25bps_usd": self.ask_depth_25bps_usd,
+            "depth_25bps_usd": self.depth_25bps_usd,
+            "imbalance_25bps": self.imbalance_25bps,
+            "buy_10k_slippage_bps": self.buy_10k_slippage_bps,
+            "sell_10k_slippage_bps": self.sell_10k_slippage_bps,
+            "buy_100k_slippage_bps": self.buy_100k_slippage_bps,
+            "sell_100k_slippage_bps": self.sell_100k_slippage_bps,
         }
 
 
@@ -109,6 +244,18 @@ def mean(values: List[float]) -> Optional[float]:
     if not values:
         return None
     return sum(values) / len(values)
+
+
+def safe_divide(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    return numerator / denominator
+
+
+def pct_change(first: Optional[float], last: Optional[float]) -> Optional[float]:
+    if first is None or last is None or first == 0:
+        return None
+    return last / first - 1
 
 
 def parse_date(value: str) -> date:
@@ -183,6 +330,95 @@ def depth_usd(levels: List[Dict[str, str]], count: int) -> Optional[float]:
     return total if seen else None
 
 
+def side_depth_features(
+    bids: List[Dict[str, str]],
+    asks: List[Dict[str, str]],
+    suffix: str,
+    count: int,
+) -> Dict[str, Optional[float]]:
+    bid_depth = depth_usd(bids, count)
+    ask_depth = depth_usd(asks, count)
+    total = None
+    imbalance = None
+    if bid_depth is not None and ask_depth is not None:
+        total = bid_depth + ask_depth
+        if total > 0:
+            imbalance = (bid_depth - ask_depth) / total
+    return {
+        f"bid_depth_{suffix}_usd": bid_depth,
+        f"ask_depth_{suffix}_usd": ask_depth,
+        f"depth_{suffix}_usd": total,
+        f"imbalance_{suffix}": imbalance,
+    }
+
+
+def depth_within_bps(levels: List[Dict[str, str]], mid_price: float, bps: float, is_bid: bool) -> Optional[float]:
+    total = 0.0
+    seen = 0
+    boundary = mid_price * (1 - bps / 10_000) if is_bid else mid_price * (1 + bps / 10_000)
+    for level in levels:
+        px = as_float(level.get("px"))
+        size = as_float(level.get("sz"))
+        if px is None or size is None:
+            continue
+        if is_bid and px < boundary:
+            break
+        if not is_bid and px > boundary:
+            break
+        total += px * size
+        seen += 1
+    return total if seen else None
+
+
+def bps_band_features(
+    bids: List[Dict[str, str]],
+    asks: List[Dict[str, str]],
+    mid_price: float,
+    bps: int,
+) -> Dict[str, Optional[float]]:
+    bid_depth = depth_within_bps(bids, mid_price, bps, is_bid=True)
+    ask_depth = depth_within_bps(asks, mid_price, bps, is_bid=False)
+    total = None
+    imbalance = None
+    if bid_depth is not None and ask_depth is not None:
+        total = bid_depth + ask_depth
+        if total > 0:
+            imbalance = (bid_depth - ask_depth) / total
+    suffix = f"{bps}bps"
+    return {
+        f"bid_depth_{suffix}_usd": bid_depth,
+        f"ask_depth_{suffix}_usd": ask_depth,
+        f"depth_{suffix}_usd": total,
+        f"imbalance_{suffix}": imbalance,
+    }
+
+
+def slippage_bps_for_notional(levels: List[Dict[str, str]], mid_price: float, notional_usd: float, is_buy: bool) -> Optional[float]:
+    if mid_price <= 0 or notional_usd <= 0:
+        return None
+    remaining = notional_usd
+    base_qty = 0.0
+    quote_spent = 0.0
+    for level in levels:
+        px = as_float(level.get("px"))
+        size = as_float(level.get("sz"))
+        if px is None or size is None or px <= 0 or size <= 0:
+            continue
+        level_notional = px * size
+        take_notional = min(remaining, level_notional)
+        quote_spent += take_notional
+        base_qty += take_notional / px
+        remaining -= take_notional
+        if remaining <= 0:
+            break
+    if remaining > 0 or base_qty == 0:
+        return None
+    vwap = quote_spent / base_qty
+    if is_buy:
+        return max(0.0, (vwap / mid_price - 1) * 10_000)
+    return max(0.0, (mid_price / vwap - 1) * 10_000)
+
+
 def snapshot_features(snapshot: Dict, depth_levels: int) -> Optional[Dict[str, Optional[float]]]:
     data = snapshot.get("raw", {}).get("data", {})
     levels = data.get("levels") or []
@@ -198,26 +434,25 @@ def snapshot_features(snapshot: Dict, depth_levels: int) -> Optional[Dict[str, O
     mid_price = (best_bid + best_ask) / 2
     spread = max(0.0, best_ask - best_bid)
     spread_pct = spread / mid_price if mid_price > 0 else None
-    bid_depth = depth_usd(bids, depth_levels)
-    ask_depth = depth_usd(asks, depth_levels)
-    depth_total = None
-    imbalance = None
-    if bid_depth is not None and ask_depth is not None:
-        depth_total = bid_depth + ask_depth
-        if depth_total > 0:
-            imbalance = (bid_depth - ask_depth) / depth_total
-
-    return {
+    features = {
         "best_bid": best_bid,
         "best_ask": best_ask,
         "mid_price": mid_price,
         "spread": spread,
         "spread_pct": spread_pct,
-        "bid_depth_top5_usd": bid_depth,
-        "ask_depth_top5_usd": ask_depth,
-        "depth_top5_usd": depth_total,
-        "imbalance_top5": imbalance,
+        "spread_bps": spread_pct * 10_000 if spread_pct is not None else None,
+        "buy_10k_slippage_bps": slippage_bps_for_notional(asks, mid_price, 10_000, is_buy=True),
+        "sell_10k_slippage_bps": slippage_bps_for_notional(bids, mid_price, 10_000, is_buy=False),
+        "buy_100k_slippage_bps": slippage_bps_for_notional(asks, mid_price, 100_000, is_buy=True),
+        "sell_100k_slippage_bps": slippage_bps_for_notional(bids, mid_price, 100_000, is_buy=False),
     }
+    features.update(side_depth_features(bids, asks, "top1", 1))
+    features.update(side_depth_features(bids, asks, "top3", 3))
+    features.update(side_depth_features(bids, asks, "top5", depth_levels))
+    features.update(side_depth_features(bids, asks, "top10", 10))
+    for band_bps in [5, 10, 25]:
+        features.update(bps_band_features(bids, asks, mid_price, band_bps))
+    return features
 
 
 def read_l2_minute_rows(lz4_path: str, coin: str, depth_levels: int, lz4_command: str) -> Iterable[Dict]:

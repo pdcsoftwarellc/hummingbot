@@ -91,15 +91,29 @@ Start here for the bigger picture:
 - `scripts/backfill_hyperliquid_s3_l2_features.py`
   - Downloads Hyperliquid S3 `market_data/<day>/<hour>/l2Book/<coin>.lz4`.
   - Aggregates snapshots into 1-minute L2 features: best bid/ask, spread,
-    top-5 depth, imbalance, and update count.
+    top-of-book depth, top-3/5/10 depth, depth bands, imbalance, book-thinning,
+    estimated 10k/100k taker slippage, and update count.
   - Keeps raw per-hour `SOL.lz4` files under
     `data/s3/hyperliquid/market_data/l2Book/SOL/`.
+
+- `scripts/backfill_hyperliquid_s3_l2_monthly.py`
+  - Resumable monthly wrapper for long S3 L2 backfills.
+  - SOL output directory:
+    `data/microstructure/hyperliquid_l2_monthly/SOL/`.
+  - Manifest:
+    `data/microstructure/hyperliquid_l2_monthly/SOL/manifest.csv`.
+
+- `scripts/collect_hyperliquid_trades.py`
+  - Forward-collects public Hyperliquid trades from the websocket.
+  - Aggregates true aggressive buy/sell flow, VWAP, net volume, and CVD into
+    1-minute rows.
+  - SOL output: `data/microstructure/hyperliquid_SOL_trades_1m.csv`.
 
 - `scripts/build_joined_research_table.py`
   - Builds the mining table for strategy research.
   - Joins 5m/1m candles with lagged 1h regimes, latest Hyperliquid context,
-    optional L2 liquidity features, reusable signal features/signals, and
-    forward outcome columns.
+    optional L2 liquidity features, optional trade-flow features, reusable
+    signal features/signals, and forward outcome columns.
   - Supports `--start` and `--end` to build bounded lower-timeframe research
     tables before scaling up.
   - Default SOL output: `data/research/sol_5m_joined_research.csv`.
@@ -111,6 +125,12 @@ Start here for the bigger picture:
   - Default outputs:
     `data/research/analysis/joined_5m_signal_outcomes.csv` and
     `data/research/analysis/joined_5m_signal_outcomes_top.csv`.
+
+- `scripts/simulate_research_candidates.py`
+  - Replays ranked slices chronologically with one open trade per candidate.
+  - Supports taker and maker-entry/taker-exit assumptions, configurable fees,
+    fixed/dynamic slippage, notional size, passive fill checks, and calendar
+    bps reporting.
 
 - `scripts/enrich_market_signal_features.py`
   - Enriches any candle/regime CSV with reusable signal-discovery columns.
@@ -172,6 +192,16 @@ Start here for the bigger picture:
   `2026-05-01` through `2026-06-01`, stored at
   `data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv`.
   S3 `l2Book` has natural missing minutes; do not forward-fill blindly.
+- Hyperliquid execution L2 features: richer May-June sample stored at
+  `data/microstructure/hyperliquid_SOL_l2_execution_1m_20260501_20260601.csv`.
+- Hyperliquid live execution L2 features:
+  `data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv`.
+  This uses the same 50-column schema as the S3 L2 backfill: spread, top-level
+  depth, bps-band depth, imbalance, book-thinning, and 10k/100k slippage.
+- Hyperliquid trade-flow collector output:
+  `data/microstructure/hyperliquid_SOL_trades_1m.csv`.
+  Historical S3 trade files were not found under the checked `market_data`
+  archive path; this starts filling true CVD only once the collector is running.
 - Forward collector: fills live Hyperliquid SOL context from its start time
   onward into `data/context/hyperliquid_SOL_context.csv`.
 - Canonical context input: `data/context/hyperliquid_SOL_merged_context.csv`.
@@ -194,6 +224,13 @@ Start here for the bigger picture:
 
 ## Running Collector
 
+- Services/data dashboard:
+  `conda run -n hummingbot python scripts/hummingbot_services_dashboard.py`
+- Dashboard output:
+  `reports/hummingbot_services_dashboard.html`
+- Use this before adding or stopping collectors; it shows known LaunchAgents,
+  purpose/necessity, logs, output files, manifest progress, and partial outputs.
+
 - Start/reload: `scripts/install_hl_sol_context_service.sh`
 - Stop/remove: `scripts/uninstall_hl_sol_context_service.sh`
 - Check service: `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-context`
@@ -203,6 +240,38 @@ Start here for the bigger picture:
   its start time forward.
 - Before research/backtests, rerun `scripts/merge_hyperliquid_context.py` so the
   merged context CSV includes the latest collector rows.
+
+## Running SOL Rich L2 Forward Collector
+
+- Start/reload: `scripts/install_hl_sol_l2_forward_service.sh`
+- Stop/remove: `scripts/uninstall_hl_sol_l2_forward_service.sh`
+- Check service:
+  `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-l2-forward`
+- Watch output: `tail -f logs/hyperliquid_sol_l2_forward.out.log`
+- Watch errors: `tail -f logs/hyperliquid_sol_l2_forward.err.log`
+- Live L2 CSV:
+  `data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv`
+- Manual smoke test:
+  `conda run -n hummingbot python scripts/collect_hyperliquid_l2_features.py --coin SOL --once --output /tmp/hyperliquid_SOL_l2_live_smoke.csv`
+- This collector protects current/future rich L2 coverage. It does not backfill
+  missed history; use the S3 L2 monthly backfill for recoverable `l2Book`
+  archive history.
+
+## Running SOL L2 Backfill
+
+- Current one-shot LaunchAgent label:
+  `com.hyperion.hummingbot.hl-sol-l2-backfill`.
+- Current target: SOL L2 from `2023-04-15` through `2026-06-01`.
+- Check status:
+  `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-l2-backfill`
+- Watch output:
+  `tail -f logs/hyperliquid_sol_l2_backfill.out.log`
+- Watch errors:
+  `tail -f logs/hyperliquid_sol_l2_backfill.err.log`
+- Stop:
+  `launchctl bootout gui/$(id -u) /Users/hyperionpett/code/hummingbot/logs/com.hyperion.hummingbot.hl-sol-l2-backfill.plist`
+- Resume manually:
+  `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_monthly.py --coin SOL --start 2023-04-15 --end 2026-06-01`
 
 ## Optional S3 Catch-Up
 
@@ -225,10 +294,14 @@ Start here for the bigger picture:
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
 - Current SOL S3 context covers `2023-05-20` through `2026-06-01`.
 - L2 feature sample: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_features.py --coin SOL --start 2026-05-01 --end 2026-06-01 --output data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv`
+- Rich L2 execution sample: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_features.py --coin SOL --start 2026-05-01 --end 2026-06-01 --output data/microstructure/hyperliquid_SOL_l2_execution_1m_20260501_20260601.csv`
+- Live rich L2 collector: `conda run -n hummingbot python scripts/collect_hyperliquid_l2_features.py --coin SOL`
+- Live trade-flow collector: `conda run -n hummingbot python scripts/collect_hyperliquid_trades.py --coin SOL`
 - Raw candle cache: `conda run -n hummingbot python scripts/backfill_market_candles.py --connector binance_perpetual --trading-pair SOL-USDT --interval 1m --start 2021-07-01 --end 2026-07-01 --chunk-records 1000`
 - Joined 5m research table: `conda run -n hummingbot python scripts/build_joined_research_table.py`
 - Analyze joined 5m outcomes: `conda run -n hummingbot python scripts/analyze_joined_research_table.py`
 - Joined bounded 1m research table example: `conda run -n hummingbot python scripts/build_joined_research_table.py --candles-csv data/candles/binance_perpetual_SOL-USDT_1m.csv --output data/research/sol_1m_joined_research_2025_2026.csv --start 2025-01-01 --end 2026-07-01 --horizons 15,30,60 --stop-take-pairs 0.0025:0.0075,0.005:0.015,0.01:0.03 --rolling-vwap-window 120 --volume-window 120 --funding-trend-window 60 --oi-change-window 60 --premium-trend-window 60 --trap-lookback 30`
+- Joined L2-rich execution table example: `conda run -n hummingbot python scripts/build_joined_research_table.py --candles-csv data/candles/binance_perpetual_SOL-USDT_1m.csv --l2-csv data/microstructure/hyperliquid_SOL_l2_execution_1m_20260501_20260601.csv --output data/research/sol_1m_execution_research_20260501_20260602.csv --start 2026-05-01 --end 2026-06-02 --horizons 15,30,60 --stop-take-pairs 0.0025:0.0075,0.005:0.015,0.01:0.03 --rolling-vwap-window 120 --volume-window 120 --funding-trend-window 60 --oi-change-window 60 --premium-trend-window 60 --trap-lookback 30`
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
 - The archive is not perfectly minute-uniform: 858 days have exactly 1,440 rows,
   199 days are below, and 52 days are above. Worst known low day is `2026-05-30`
@@ -243,7 +316,8 @@ Start here for the bigger picture:
 - Pre-`2023-05-20`: no Hyperliquid S3 context found; use price-only regimes.
 - `2026-06-02` through collector start: only recoverable if the June S3 archive
   fills it later.
-- Current and future data: forward collector is enough as long as it stays up.
+- Current and future data: context and rich L2 forward collectors are enough as
+  long as they stay up; trade-flow still needs its own collector if CVD matters.
 - Still needed for strategy work: wire regime outputs into an actual controller
   policy and backtest PnL with collateral, leverage, funding, fees, slippage,
   and liquidation assumptions.
