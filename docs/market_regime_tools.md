@@ -102,6 +102,14 @@ Start here for the bigger picture:
     forward outcome columns.
   - Default SOL output: `data/research/sol_5m_joined_research.csv`.
 
+- `scripts/analyze_joined_research_table.py`
+  - Ranks side-aware signal/regime slices from the joined research table.
+  - Uses simulated stop/take outcomes, configurable leverage, and an assumed
+    per-side fee rate to estimate margin-return expectancy.
+  - Default outputs:
+    `data/research/analysis/joined_5m_signal_outcomes.csv` and
+    `data/research/analysis/joined_5m_signal_outcomes_top.csv`.
+
 - `scripts/enrich_market_signal_features.py`
   - Enriches any candle/regime CSV with reusable signal-discovery columns.
   - Optional `--context-csv` merges raw Hyperliquid context as-of so derivatives
@@ -213,6 +221,7 @@ Start here for the bigger picture:
 - L2 feature sample: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_features.py --coin SOL --start 2026-05-01 --end 2026-06-01 --output data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv`
 - Raw candle cache: `conda run -n hummingbot python scripts/backfill_market_candles.py --connector binance_perpetual --trading-pair SOL-USDT --interval 1m --start 2021-07-01 --end 2026-07-01 --chunk-records 1000`
 - Joined 5m research table: `conda run -n hummingbot python scripts/build_joined_research_table.py`
+- Analyze joined 5m outcomes: `conda run -n hummingbot python scripts/analyze_joined_research_table.py`
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
 - The archive is not perfectly minute-uniform: 858 days have exactly 1,440 rows,
   199 days are below, and 52 days are above. Worst known low day is `2026-05-30`

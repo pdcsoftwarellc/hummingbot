@@ -78,3 +78,10 @@ Current default build:
 - Output: `data/research/sol_5m_joined_research.csv`
 - Important assumption: the 1h regime is joined with a one-hour availability
   lag so the table does not use the current unfinished 1h candle as known data.
+
+Current first-pass scan:
+
+- Script: `scripts/analyze_joined_research_table.py`
+- Output: `data/research/analysis/joined_5m_signal_outcomes_top.csv`
+- Early read: broad 5m signal slices are weak after leverage and fee assumptions;
+  use the scan to find hypotheses, not to approve a live strategy.
