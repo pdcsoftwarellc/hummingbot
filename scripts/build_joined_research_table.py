@@ -134,6 +134,29 @@ def parse_stop_take_pairs(value: str) -> List[Tuple[float, float]]:
     return pairs
 
 
+def parse_optional_timestamp(value: Optional[str], end_of_day: bool = False) -> Optional[int]:
+    if not value:
+        return None
+    parsed = pd.to_datetime(value, utc=True)
+    if end_of_day and parsed.time() == datetime.min.time():
+        parsed = parsed + pd.Timedelta(days=1)
+    epoch_start = pd.Timestamp("1970-01-01", tz="UTC")
+    return int((parsed - epoch_start).total_seconds())
+
+
+def filter_time_range(frame: pd.DataFrame, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
+    start_timestamp = parse_optional_timestamp(start)
+    end_timestamp = parse_optional_timestamp(end, end_of_day=True)
+    filtered = frame
+    if start_timestamp is not None:
+        filtered = filtered[filtered["timestamp"] >= start_timestamp]
+    if end_timestamp is not None:
+        filtered = filtered[filtered["timestamp"] < end_timestamp]
+    if filtered.empty:
+        raise ValueError("No candle rows remain after applying --start/--end")
+    return filtered.reset_index(drop=True)
+
+
 def pct_token(value: float) -> str:
     return f"{value * 100:.2f}".rstrip("0").rstrip(".").replace(".", "p")
 
@@ -352,6 +375,8 @@ def parse_args():
     parser.add_argument("--context-csv", default=DEFAULT_CONTEXT)
     parser.add_argument("--l2-csv", default=DEFAULT_L2)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
+    parser.add_argument("--start", help="Optional inclusive candle start, e.g. 2024-01-01")
+    parser.add_argument("--end", help="Optional exclusive candle end, e.g. 2026-07-01")
     parser.add_argument("--regime-availability-lag-seconds", type=int, default=3600)
     parser.add_argument("--regime-max-staleness-seconds", type=int, default=3900)
     parser.add_argument("--context-max-staleness-seconds", type=int, default=3600)
@@ -373,7 +398,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    candles = load_frame(args.candles_csv, "candles CSV")
+    candles = filter_time_range(load_frame(args.candles_csv, "candles CSV"), args.start, args.end)
     joined = merge_regime(
         base=candles,
         regime_csv=args.regime_csv,

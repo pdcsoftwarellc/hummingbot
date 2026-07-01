@@ -100,6 +100,8 @@ Start here for the bigger picture:
   - Joins 5m/1m candles with lagged 1h regimes, latest Hyperliquid context,
     optional L2 liquidity features, reusable signal features/signals, and
     forward outcome columns.
+  - Supports `--start` and `--end` to build bounded lower-timeframe research
+    tables before scaling up.
   - Default SOL output: `data/research/sol_5m_joined_research.csv`.
 
 - `scripts/analyze_joined_research_table.py`
@@ -185,6 +187,10 @@ Start here for the bigger picture:
   `data/research/sol_5m_joined_research.csv`.
   Latest build has 525,889 rows, 214 columns, gap-free 5m price rows,
   60.13% Hyperliquid context coverage, and 1.75% L2 feature coverage.
+- Joined SOL 1m research dataset for first snipe pass:
+  `data/research/sol_1m_joined_research_2025_2026.csv`.
+  Latest build has 786,241 rows from `2025-01-01` through `2026-07-01`,
+  94.64% Hyperliquid context coverage, and 5.85% L2 feature coverage.
 
 ## Running Collector
 
@@ -222,6 +228,7 @@ Start here for the bigger picture:
 - Raw candle cache: `conda run -n hummingbot python scripts/backfill_market_candles.py --connector binance_perpetual --trading-pair SOL-USDT --interval 1m --start 2021-07-01 --end 2026-07-01 --chunk-records 1000`
 - Joined 5m research table: `conda run -n hummingbot python scripts/build_joined_research_table.py`
 - Analyze joined 5m outcomes: `conda run -n hummingbot python scripts/analyze_joined_research_table.py`
+- Joined bounded 1m research table example: `conda run -n hummingbot python scripts/build_joined_research_table.py --candles-csv data/candles/binance_perpetual_SOL-USDT_1m.csv --output data/research/sol_1m_joined_research_2025_2026.csv --start 2025-01-01 --end 2026-07-01 --horizons 15,30,60 --stop-take-pairs 0.0025:0.0075,0.005:0.015,0.01:0.03 --rolling-vwap-window 120 --volume-window 120 --funding-trend-window 60 --oi-change-window 60 --premium-trend-window 60 --trap-lookback 30`
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
 - The archive is not perfectly minute-uniform: 858 days have exactly 1,440 rows,
   199 days are below, and 52 days are above. Worst known low day is `2026-05-30`

@@ -85,3 +85,15 @@ Current first-pass scan:
 - Output: `data/research/analysis/joined_5m_signal_outcomes_top.csv`
 - Early read: broad 5m signal slices are weak after leverage and fee assumptions;
   use the scan to find hypotheses, not to approve a live strategy.
+
+Current 1m research table:
+
+- Script: `scripts/build_joined_research_table.py`
+- Useful flags: `--candles-csv`, `--start`, `--end`, `--horizons`,
+  `--stop-take-pairs`.
+- Output built for first snipe pass:
+  `data/research/sol_1m_joined_research_2025_2026.csv`.
+- Early best lead: short `strong_short_continuation` in
+  `high_volatility_danger`, `mixed` VWAP alignment, `high_expansion` volume,
+  `0.25%` stop / `0.75%` take over `60` one-minute bars. It replays around
+  `5` bps/day at `5x`, below target and not robust enough yet.
