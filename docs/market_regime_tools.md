@@ -127,6 +127,10 @@ strategy research.
 
 ## Current Data Map
 
+- Storage: repo `data/` is a symlink to external SSD path
+  `/Volumes/Extreme Pro/hummingbot-market-data/data`.
+- The external SSD was erased before migration and now holds the Hummingbot
+  market-data cache. Keep large candles/context/S3/microstructure data there.
 - Price proxy: Binance perpetual `SOL-USDT` 1h candles, `2021-07-01` through
   `2026-06-30`.
 - Hyperliquid S3 context: SOL `asset_ctxs`, `2023-05-20` through `2026-06-01`.
