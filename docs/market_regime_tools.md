@@ -3,6 +3,9 @@
 Quick reference for the regime-detection tools added during SOL/Hyperliquid
 strategy research.
 
+Start here for the bigger picture:
+`docs/strategy_research_mental_model.md`.
+
 ## Files
 
 - `hummingbot/strategy_v2/utils/market_regime.py`
@@ -80,6 +83,18 @@ strategy research.
     `--context-max-staleness-seconds`.
   - Useful for creating historical regime datasets before strategy work.
 
+- `scripts/backfill_market_candles.py`
+  - Fetches and caches raw OHLCV candles without regime labeling.
+  - Use this for lower-timeframe execution datasets like SOL 1m/5m before
+    strategy mining.
+
+- `scripts/backfill_hyperliquid_s3_l2_features.py`
+  - Downloads Hyperliquid S3 `market_data/<day>/<hour>/l2Book/<coin>.lz4`.
+  - Aggregates snapshots into 1-minute L2 features: best bid/ask, spread,
+    top-5 depth, imbalance, and update count.
+  - Keeps raw per-hour `SOL.lz4` files under
+    `data/s3/hyperliquid/market_data/l2Book/SOL/`.
+
 - `scripts/enrich_market_signal_features.py`
   - Enriches any candle/regime CSV with reusable signal-discovery columns.
   - Optional `--context-csv` merges raw Hyperliquid context as-of so derivatives
@@ -133,7 +148,13 @@ strategy research.
   market-data cache. Keep large candles/context/S3/microstructure data there.
 - Price proxy: Binance perpetual `SOL-USDT` 1h candles, `2021-07-01` through
   `2026-06-30`.
+- Execution candles: Binance perpetual `SOL-USDT` 1m and 5m candles,
+  `2021-07-01` through `2026-07-01`, gap-free in the latest audit.
 - Hyperliquid S3 context: SOL `asset_ctxs`, `2023-05-20` through `2026-06-01`.
+- Hyperliquid L2 features: latest published sample month,
+  `2026-05-01` through `2026-06-01`, stored at
+  `data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv`.
+  S3 `l2Book` has natural missing minutes; do not forward-fill blindly.
 - Forward collector: fills live Hyperliquid SOL context from its start time
   onward into `data/context/hyperliquid_SOL_context.csv`.
 - Canonical context input: `data/context/hyperliquid_SOL_merged_context.csv`.
@@ -178,6 +199,8 @@ strategy research.
 - Label named signals: `conda run -n hummingbot python scripts/label_market_signals.py --input data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_features.csv --output data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_signals.csv`
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
 - Current SOL S3 context covers `2023-05-20` through `2026-06-01`.
+- L2 feature sample: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_features.py --coin SOL --start 2026-05-01 --end 2026-06-01 --output data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv`
+- Raw candle cache: `conda run -n hummingbot python scripts/backfill_market_candles.py --connector binance_perpetual --trading-pair SOL-USDT --interval 1m --start 2021-07-01 --end 2026-07-01 --chunk-records 1000`
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
 - The archive is not perfectly minute-uniform: 858 days have exactly 1,440 rows,
   199 days are below, and 52 days are above. Worst known low day is `2026-05-30`
