@@ -95,6 +95,13 @@ Start here for the bigger picture:
   - Keeps raw per-hour `SOL.lz4` files under
     `data/s3/hyperliquid/market_data/l2Book/SOL/`.
 
+- `scripts/build_joined_research_table.py`
+  - Builds the mining table for strategy research.
+  - Joins 5m/1m candles with lagged 1h regimes, latest Hyperliquid context,
+    optional L2 liquidity features, reusable signal features/signals, and
+    forward outcome columns.
+  - Default SOL output: `data/research/sol_5m_joined_research.csv`.
+
 - `scripts/enrich_market_signal_features.py`
   - Enriches any candle/regime CSV with reusable signal-discovery columns.
   - Optional `--context-csv` merges raw Hyperliquid context as-of so derivatives
@@ -166,6 +173,10 @@ Start here for the bigger picture:
   `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_features.csv`.
 - Signal-labeled SOL research dataset:
   `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_signals.csv`.
+- Joined SOL 5m research dataset:
+  `data/research/sol_5m_joined_research.csv`.
+  Latest build has 525,889 rows, 214 columns, gap-free 5m price rows,
+  60.13% Hyperliquid context coverage, and 1.75% L2 feature coverage.
 
 ## Running Collector
 
@@ -201,6 +212,7 @@ Start here for the bigger picture:
 - Current SOL S3 context covers `2023-05-20` through `2026-06-01`.
 - L2 feature sample: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_features.py --coin SOL --start 2026-05-01 --end 2026-06-01 --output data/microstructure/hyperliquid_SOL_l2_1m_20260501_20260601.csv`
 - Raw candle cache: `conda run -n hummingbot python scripts/backfill_market_candles.py --connector binance_perpetual --trading-pair SOL-USDT --interval 1m --start 2021-07-01 --end 2026-07-01 --chunk-records 1000`
+- Joined 5m research table: `conda run -n hummingbot python scripts/build_joined_research_table.py`
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
 - The archive is not perfectly minute-uniform: 858 days have exactly 1,440 rows,
   199 days are below, and 52 days are above. Worst known low day is `2026-05-30`

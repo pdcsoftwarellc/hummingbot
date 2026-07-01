@@ -71,3 +71,10 @@ Build a joined research table where each 1m or 5m row has:
 - L2 liquidity features when available.
 - Forward returns, adverse excursion, favorable excursion, and simulated
   stop/take outcomes.
+
+Current default build:
+
+- Script: `scripts/build_joined_research_table.py`
+- Output: `data/research/sol_5m_joined_research.csv`
+- Important assumption: the 1h regime is joined with a one-hour availability
+  lag so the table does not use the current unfinished 1h candle as known data.
