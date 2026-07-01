@@ -21,6 +21,12 @@ strategy research.
     liquidations into the detector's `MarketContext`.
   - Includes SOL 1h defaults via `MarketContextBuilder.sol_1h()`.
 
+- `hummingbot/strategy_v2/utils/market_signal_features.py`
+  - Reusable feature enrichment for strategy research across markets.
+  - Adds EMA bias, rolling/session VWAP distance, ROC/RSI, volume expansion,
+    taker-buy imbalance/CVD proxy, funding/OI/premium trends, spread/depth risk,
+    and failed-breakout trap flags.
+
 - `scripts/collect_hyperliquid_context.py`
   - Forward-collects public Hyperliquid SOL context every minute.
   - Writes `data/context/hyperliquid_SOL_context.csv`.
@@ -68,6 +74,13 @@ strategy research.
     `--context-max-staleness-seconds`.
   - Useful for creating historical regime datasets before strategy work.
 
+- `scripts/enrich_market_signal_features.py`
+  - Enriches any candle/regime CSV with reusable signal-discovery columns.
+  - Optional `--context-csv` merges raw Hyperliquid context as-of so derivatives
+    fields like OI, premium, spread, and depth are available when the data exists.
+  - SOL output example:
+    `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_features.csv`.
+
 - `scripts/analyze_market_regimes.py`
   - Audits labeled regime CSVs against forward returns and adverse excursion.
   - Writes label, modifier, and long-vs-short outcome summaries under
@@ -84,13 +97,18 @@ strategy research.
 - `test/hummingbot/strategy_v2/utils/test_market_regime_context.py`
   - Unit coverage for SOL context input normalization.
 
+- `test/hummingbot/strategy_v2/utils/test_market_signal_features.py`
+  - Unit coverage for reusable trend, VWAP, momentum, volume, derivatives, risk,
+    and trap-detection feature enrichment.
+
 ## Flow
 
 1. Cache/fetch candles with `scripts/backfill_market_regimes.py`.
 2. Build optional market context with `MarketContextBuilder.sol_1h()`.
 3. Label candles with a generic detector plus a market preset.
-4. Analyze labels with `scripts/analyze_market_regimes.py`.
-5. Use the findings to design a Strategy V2 controller policy.
+4. Enrich labels with reusable signal features.
+5. Analyze labels with `scripts/analyze_market_regimes.py`.
+6. Use the findings to design a Strategy V2 controller policy.
 
 ## Current Data Map
 
@@ -104,6 +122,8 @@ strategy research.
   merge before research/backtests.
 - Labeled dataset: 5y Binance proxy candles plus `context_available` flags;
   26,382 of 43,800 hourly rows currently have Hyperliquid context.
+- Enriched SOL research dataset:
+  `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_features.csv`.
 
 ## Running Collector
 
@@ -133,6 +153,7 @@ strategy research.
 
 - Backfill context: `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2023-05-20 --end 2026-06-01`
 - Label with context: add `--context-csv data/context/hyperliquid_SOL_merged_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
+- Enrich with signal features: `conda run -n hummingbot python scripts/enrich_market_signal_features.py --input data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv --context-csv data/context/hyperliquid_SOL_merged_context.csv --output data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context_features.csv`
 - Long proxy output: `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`
 - Current SOL S3 context covers `2023-05-20` through `2026-06-01`.
 - Current cache has 1,109 archive days and 1,573,887 SOL rows.
