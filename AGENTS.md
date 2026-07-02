@@ -25,3 +25,7 @@ For each window, include these fields when available, using the same labels and 
 - Sharpe Ratio
 
 If a metric is unavailable from the test output, explicitly mark it as `N/A` instead of omitting it.
+
+When reporting multiple variants, clearly identify which result is the current baseline and which results are experimental sidecars. Do not silently promote an experimental module into the baseline just because it explains a recent move.
+
+When leverage affects sizing, report the leverage assumption. Prefer confidence-scaled leverage in research tooling: the configured leverage should act as a cap reserved for high-confidence signals, not as an unconditional default.

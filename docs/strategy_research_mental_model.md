@@ -66,6 +66,12 @@ the SOL/Hyperliquid work:
   `scripts/simulate_research_candidates.py`, which replays ranked candidates
   chronologically with one open trade per candidate and taker or maker-entry
   execution assumptions.
+- SOL swing hypothesis backtester:
+  `scripts/backtest_sol_swing_hypothesis.py`, which replays side-specific SOL
+  swing books from the canonical 5m joined table. It always reports YTD,
+  1 Year, and Full windows when the data supports them, prints `Backtest
+  Timeframe`, marks truncated current trades as `data_end`, and keeps the
+  promoted baseline separate from experimental books.
 - L2 microstructure pipeline:
   `scripts/backfill_hyperliquid_s3_l2_features.py`,
   `scripts/backfill_hyperliquid_s3_l2_monthly.py`, and
@@ -146,6 +152,17 @@ Do not optimize a strategy only on raw indicators. Test setups as:
 
 Then evaluate PnL with collateral, leverage, fees, funding, slippage, and
 liquidation assumptions.
+
+Keep deployable baselines and experiments separate in reports. For the SOL
+swing work, `combined` is the current baseline, while names such as
+`combined_with_breakout` are experimental sidecars until their full-history
+return, drawdown, and Sharpe justify promotion.
+
+Leverage should be confidence-scaled in research and deployment candidates.
+Treat the configured leverage as a cap, not a default entitlement: low-confidence
+signals should either be skipped or run near minimum leverage, and full leverage
+should require an explicit confidence threshold plus clean liquidity/funding
+context.
 
 ## Practical Next Dataset
 
