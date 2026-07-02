@@ -23,10 +23,28 @@ This doc is only for the market-regime layer and its immediate support tools:
     `range_chop`, `breakdown`, `high_volatility_danger`, and `no_trade`.
   - Also returns side gates, risk multipliers, confidence, modifiers, and raw
     features for strategy controllers to consume.
+  - Keeps the pure chart structure separate from the final bot posture:
+    `price_regime` is the OHLCV-only map, while `regime_label` remains the
+    context/risk-adjusted execution label for backward compatibility. Risk
+    overlays are exposed through `risk_state`, `execution_posture`, and
+    `blocked_by`.
+  - Liquidity scoring distinguishes hard blocks from soft sizing risk. Depth
+    below the hard floor or a thin spread can still block, while tight-spread
+    depth below the ideal SOL threshold becomes `liquidity_thin` and reduces
+    risk rather than forcing `bot_off`.
 
 - `scripts/regime_configs/sol_1h.yml`
   - SOL 1h threshold preset.
   - Keeps market-specific detector tuning out of the generic detector code.
+
+- `hummingbot/strategy_v2/utils/market_execution_policy.py`
+  - Shared execution gate for strategies and research scripts.
+  - Converts a `MarketRegimeReport` or labeled CSV row into reusable answers:
+    hard-blocked or not, allowed side, side risk multiplier, and directional
+    signal.
+  - Strategy-specific danger rules should be passed as extra hard regimes or
+    extra hard modifiers instead of reimplementing liquidity, risk-state, or
+    side-gate parsing.
 
 - `hummingbot/strategy_v2/utils/market_regime_context.py`
   - Converts raw context inputs like funding, spread/depth, crowding, and

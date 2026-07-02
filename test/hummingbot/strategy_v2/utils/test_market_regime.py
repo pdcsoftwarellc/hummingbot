@@ -9,6 +9,7 @@ from hummingbot.strategy_v2.utils.market_regime import (
     MarketRegimeConfigModel,
     MarketRegimeDetector,
     MarketRegimeModifier,
+    MarketRiskState,
 )
 
 
@@ -53,6 +54,9 @@ class TestMarketRegimeDetector(unittest.TestCase):
         closes = [100 + i for i in range(40)]
         report = self.detector.classify(make_candles(closes))
         self.assertEqual(MarketRegime.UPTREND, report.label)
+        self.assertEqual(MarketRegime.UPTREND, report.price_regime)
+        self.assertEqual(MarketRiskState.NORMAL, report.risk_state)
+        self.assertEqual(report.action, report.execution_posture)
         self.assertTrue(report.allow_longs)
         self.assertFalse(report.allow_shorts)
 
@@ -91,6 +95,9 @@ class TestMarketRegimeDetector(unittest.TestCase):
             MarketContext(crowding_score=0.9),
         )
         self.assertEqual(MarketRegime.SQUEEZE_RISK, report.label)
+        self.assertEqual(MarketRegime.UPTREND, report.price_regime)
+        self.assertEqual(MarketRiskState.SQUEEZE_RISK, report.risk_state)
+        self.assertEqual(["squeeze_risk"], report.blocked_by)
         self.assertLess(report.risk_multiplier, 1)
 
     def test_high_volatility_danger_overrides_breakout(self):
@@ -106,6 +113,22 @@ class TestMarketRegimeDetector(unittest.TestCase):
         closes = [100, 101, 99, 100, 101, 99] * 5 + [110, 112]
         report = detector.classify(make_candles(closes))
         self.assertEqual(MarketRegime.HIGH_VOLATILITY_DANGER, report.label)
+        self.assertEqual(MarketRegime.BREAKOUT, report.price_regime)
+        self.assertEqual(MarketRiskState.HIGH_VOLATILITY_DANGER, report.risk_state)
+        self.assertEqual(["high_vol_danger"], report.blocked_by)
+
+    def test_liquidity_block_does_not_erase_price_regime(self):
+        closes = [100 + i for i in range(40)]
+        report = self.detector.classify(
+            make_candles(closes),
+            MarketContext(liquidity_score=0.01),
+        )
+        self.assertEqual(MarketRegime.NO_TRADE, report.label)
+        self.assertEqual(MarketRegime.UPTREND, report.price_regime)
+        self.assertEqual(MarketRiskState.LIQUIDITY_BLOCKED, report.risk_state)
+        self.assertEqual(["liquidity_bad"], report.blocked_by)
+        self.assertFalse(report.allow_longs)
+        self.assertFalse(report.allow_shorts)
 
     def test_pullback_in_uptrend_modifier(self):
         closes = [100 + i for i in range(30)] + [130, 132, 134, 136, 132, 131]
@@ -150,6 +173,8 @@ class TestMarketRegimeDetector(unittest.TestCase):
             MarketContext(liquidity_score=0.35),
         )
         self.assertEqual(MarketRegime.RANGE_CHOP, report.label)
+        self.assertEqual(MarketRegime.RANGE_CHOP, report.price_regime)
+        self.assertEqual(MarketRiskState.SOFT_RISK, report.risk_state)
         self.assertIn(MarketRegimeModifier.LIQUIDITY_THIN, report.modifiers)
         self.assertTrue(report.allow_longs)
         self.assertTrue(report.allow_shorts)

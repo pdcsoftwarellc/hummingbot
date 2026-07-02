@@ -104,6 +104,7 @@ class MarketContextInput:
 
 @dataclass
 class MarketContextBuilderConfig:
+    hard_min_depth_usd: float = 50_000
     min_depth_usd: float = 250_000
     full_depth_usd: float = 2_000_000
     healthy_spread_pct: float = 0.0005
@@ -116,6 +117,7 @@ class MarketContextBuilderConfig:
 
 
 SOL_1H_CONTEXT_CONFIG = MarketContextBuilderConfig(
+    hard_min_depth_usd=100_000,
     min_depth_usd=500_000,
     full_depth_usd=5_000_000,
     healthy_spread_pct=0.0004,
@@ -157,7 +159,7 @@ class MarketContextBuilder:
         depth_usd = inputs.depth_usd
         if depth_usd is None and inputs.bid_depth_usd is not None and inputs.ask_depth_usd is not None:
             depth_usd = min(inputs.bid_depth_usd, inputs.ask_depth_usd) * 2
-        depth_score = _score_between(depth_usd, self.config.min_depth_usd, self.config.full_depth_usd)
+        depth_score = self._depth_liquidity_score(depth_usd)
 
         spread_score = None
         if inputs.spread_pct is not None:
@@ -171,6 +173,23 @@ class MarketContextBuilder:
 
         scores = [score for score in [depth_score, spread_score] if score is not None]
         return min(scores) if scores else None
+
+    def _depth_liquidity_score(self, depth_usd: Optional[float]) -> Optional[float]:
+        if depth_usd is None:
+            return None
+        if depth_usd <= self.config.hard_min_depth_usd:
+            return 0.0
+        if depth_usd < self.config.min_depth_usd:
+            depth_range = self.config.min_depth_usd - self.config.hard_min_depth_usd
+            if depth_range <= 0:
+                return 0.0
+            return 0.2 + 0.3 * _clip((depth_usd - self.config.hard_min_depth_usd) / depth_range)
+        if depth_usd >= self.config.full_depth_usd:
+            return 1.0
+        depth_range = self.config.full_depth_usd - self.config.min_depth_usd
+        if depth_range <= 0:
+            return 1.0
+        return 0.5 + 0.5 * _clip((depth_usd - self.config.min_depth_usd) / depth_range)
 
     def _crowding_score(self, inputs: MarketContextInput) -> Optional[float]:
         if inputs.crowding_score is not None:

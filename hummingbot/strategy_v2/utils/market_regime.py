@@ -35,6 +35,14 @@ class RegimeAction(str, Enum):
     BOT_OFF = "bot_off"
 
 
+class MarketRiskState(str, Enum):
+    NORMAL = "normal"
+    SOFT_RISK = "soft_risk"
+    LIQUIDITY_BLOCKED = "liquidity_blocked"
+    SQUEEZE_RISK = "squeeze_risk"
+    HIGH_VOLATILITY_DANGER = "high_volatility_danger"
+
+
 class MarketRegimeModifier(str, Enum):
     PULLBACK_IN_UPTREND = "pullback_in_uptrend"
     PULLBACK_IN_DOWNTREND = "pullback_in_downtrend"
@@ -145,6 +153,10 @@ class MarketRegimeReport:
     long_risk_multiplier: float = 0.0
     short_risk_multiplier: float = 0.0
     features: Dict[str, float] = field(default_factory=dict)
+    price_regime: MarketRegime = MarketRegime.NO_TRADE
+    risk_state: MarketRiskState = MarketRiskState.NORMAL
+    execution_posture: RegimeAction = RegimeAction.BOT_OFF
+    blocked_by: List[str] = field(default_factory=list)
 
 
 class MarketRegimeDetector:
@@ -191,69 +203,76 @@ class MarketRegimeDetector:
 
         features = self._features(df, context)
 
-        if features["liquidity_bad"]:
-            return self._report(
-                label=MarketRegime.NO_TRADE,
-                confidence=1.0,
-                reason="liquidity score below threshold",
-                features=features,
-            )
-        if features["high_vol_danger"]:
-            return self._report(
-                label=MarketRegime.HIGH_VOLATILITY_DANGER,
-                confidence=min(1.0, features["vol_ratio"] / self.config.high_vol_multiplier),
-                reason="ATR/realized volatility expanded beyond danger threshold",
-                features=features,
-            )
-        if features["squeeze_risk"]:
-            return self._report(
-                label=MarketRegime.SQUEEZE_RISK,
-                confidence=max(features["crowding_score"], features["liquidation_pressure_score"]),
-                reason="crowded positioning or nearby liquidations",
-                features=features,
-            )
-        if features["accepted_above_range"]:
-            return self._report(
-                label=MarketRegime.BREAKOUT,
-                confidence=min(1.0, features["breakout_distance_pct"] / max(features["atr_pct"], 0.0001)),
-                reason="price accepted above prior range",
-                features=features,
-            )
-        if features["accepted_below_range"]:
-            return self._report(
-                label=MarketRegime.BREAKDOWN,
-                confidence=min(1.0, features["breakdown_distance_pct"] / max(features["atr_pct"], 0.0001)),
-                reason="price accepted below prior range",
-                features=features,
-            )
-        if features["higher_highs"] and features["higher_lows"] and features["trend_slope_pct"] > self.config.min_trend_slope_pct:
-            return self._report(
-                label=MarketRegime.UPTREND,
-                confidence=min(1.0, features["trend_slope_pct"] / (self.config.min_trend_slope_pct * 3)),
-                reason="higher highs and higher lows with positive slope",
-                features=features,
-            )
-        if features["lower_highs"] and features["lower_lows"] and features["trend_slope_pct"] < -self.config.min_trend_slope_pct:
-            return self._report(
-                label=MarketRegime.DOWNTREND,
-                confidence=min(1.0, abs(features["trend_slope_pct"]) / (self.config.min_trend_slope_pct * 3)),
-                reason="lower highs and lower lows with negative slope",
-                features=features,
-            )
-        if features["inside_range"] and features["clear_boundaries"]:
-            return self._report(
-                label=MarketRegime.RANGE_CHOP,
-                confidence=min(1.0, features["boundary_touch_count"] / (self.config.min_boundary_touches * 2)),
-                reason="price oscillating inside clear boundaries",
-                features=features,
-            )
+        price_label, confidence, reason = self._classify_price_regime(features)
+        label, risk_state, blocked_by = self._apply_risk_overlay(price_label, features)
+        if label == MarketRegime.NO_TRADE and blocked_by:
+            reason = f"{reason}; blocked by {', '.join(blocked_by)}"
+        elif label == MarketRegime.HIGH_VOLATILITY_DANGER:
+            confidence = min(1.0, features["vol_ratio"] / self.config.high_vol_multiplier)
+            reason = f"{reason}; ATR/realized volatility expanded beyond danger threshold"
+        elif label == MarketRegime.SQUEEZE_RISK:
+            confidence = max(features["crowding_score"], features["liquidation_pressure_score"])
+            reason = f"{reason}; crowded positioning or nearby liquidations"
 
         return self._report(
-            label=MarketRegime.NO_TRADE,
-            confidence=0.7,
-            reason="structure unclear",
+            label=label,
+            confidence=confidence,
+            reason=reason,
             features=features,
+            price_regime=price_label,
+            risk_state=risk_state,
+            blocked_by=blocked_by,
         )
+
+    def _classify_price_regime(self, features: Dict[str, float]) -> tuple:
+        if features["accepted_above_range"]:
+            return (
+                MarketRegime.BREAKOUT,
+                min(1.0, features["breakout_distance_pct"] / max(features["atr_pct"], 0.0001)),
+                "price accepted above prior range",
+            )
+        if features["accepted_below_range"]:
+            return (
+                MarketRegime.BREAKDOWN,
+                min(1.0, features["breakdown_distance_pct"] / max(features["atr_pct"], 0.0001)),
+                "price accepted below prior range",
+            )
+        if features["higher_highs"] and features["higher_lows"] and features["trend_slope_pct"] > self.config.min_trend_slope_pct:
+            return (
+                MarketRegime.UPTREND,
+                min(1.0, features["trend_slope_pct"] / (self.config.min_trend_slope_pct * 3)),
+                "higher highs and higher lows with positive slope",
+            )
+        if features["lower_highs"] and features["lower_lows"] and features["trend_slope_pct"] < -self.config.min_trend_slope_pct:
+            return (
+                MarketRegime.DOWNTREND,
+                min(1.0, abs(features["trend_slope_pct"]) / (self.config.min_trend_slope_pct * 3)),
+                "lower highs and lower lows with negative slope",
+            )
+        if features["inside_range"] and features["clear_boundaries"]:
+            return (
+                MarketRegime.RANGE_CHOP,
+                min(1.0, features["boundary_touch_count"] / (self.config.min_boundary_touches * 2)),
+                "price oscillating inside clear boundaries",
+            )
+
+        return MarketRegime.NO_TRADE, 0.7, "structure unclear"
+
+    @staticmethod
+    def _apply_risk_overlay(price_label: MarketRegime, features: Dict[str, float]) -> tuple:
+        blocked_by = []
+        if features["liquidity_bad"]:
+            blocked_by.append("liquidity_bad")
+            return MarketRegime.NO_TRADE, MarketRiskState.LIQUIDITY_BLOCKED, blocked_by
+        if features["high_vol_danger"]:
+            blocked_by.append("high_vol_danger")
+            return MarketRegime.HIGH_VOLATILITY_DANGER, MarketRiskState.HIGH_VOLATILITY_DANGER, blocked_by
+        if features["squeeze_risk"]:
+            blocked_by.append("squeeze_risk")
+            return MarketRegime.SQUEEZE_RISK, MarketRiskState.SQUEEZE_RISK, blocked_by
+        if features.get("liquidity_thin", 0) or features.get("funding_extreme", 0) or features.get("post_liquidation_flush", 0):
+            return price_label, MarketRiskState.SOFT_RISK, blocked_by
+        return price_label, MarketRiskState.NORMAL, blocked_by
 
     def _features(self, df: pd.DataFrame, context: MarketContext) -> Dict[str, float]:
         cfg = self.config
@@ -391,9 +410,14 @@ class MarketRegimeDetector:
         confidence: float,
         reason: str,
         features: Optional[Dict[str, float]] = None,
+        price_regime: Optional[MarketRegime] = None,
+        risk_state: MarketRiskState = MarketRiskState.NORMAL,
+        blocked_by: Optional[List[str]] = None,
     ) -> MarketRegimeReport:
         features = features or {}
-        modifiers = self._modifiers(label, features)
+        price_regime = price_regime or label
+        blocked_by = blocked_by or []
+        modifiers = self._modifiers(price_regime, features)
         policies = {
             MarketRegime.RANGE_CHOP: (RegimeAction.NEUTRAL_GRID, GridBias.NEUTRAL, True, True, 1.0),
             MarketRegime.UPTREND: (RegimeAction.LONG_BIASED_GRID, GridBias.LONG, True, False, 1.0),
@@ -425,6 +449,10 @@ class MarketRegimeDetector:
             long_risk_multiplier=long_risk_multiplier,
             short_risk_multiplier=short_risk_multiplier,
             features=features,
+            price_regime=price_regime,
+            risk_state=risk_state,
+            execution_posture=action,
+            blocked_by=blocked_by,
         )
 
     def _modifiers(self, label: MarketRegime, features: Dict[str, float]) -> List[MarketRegimeModifier]:

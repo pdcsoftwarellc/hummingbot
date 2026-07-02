@@ -341,6 +341,10 @@ def label_candles(
         report = detector.classify(window, context)
         row = {
             "context_available": context is not None,
+            "price_regime": report.price_regime.value,
+            "risk_state": report.risk_state.value,
+            "execution_posture": report.execution_posture.value,
+            "blocked_by": ",".join(report.blocked_by),
             "regime_label": report.label.value,
             "regime_action": report.action.value,
             "grid_bias": report.grid_bias.value,
@@ -363,11 +367,39 @@ def label_candles(
 
 def summarize(labeled: pd.DataFrame) -> str:
     lines = []
+    if "price_regime" in labeled.columns:
+        price_counts = labeled["price_regime"].value_counts()
+        lines.append("Price-regime counts:")
+        for label, count in price_counts.items():
+            pct = count / len(labeled) if len(labeled) else 0
+            lines.append(f"  {label:24s} {count:6d} ({pct:6.2%})")
+        lines.append("")
+
     label_counts = labeled["regime_label"].value_counts()
-    lines.append("Regime counts:")
+    lines.append("Final regime/posture counts:")
     for label, count in label_counts.items():
         pct = count / len(labeled) if len(labeled) else 0
         lines.append(f"  {label:24s} {count:6d} ({pct:6.2%})")
+
+    if "risk_state" in labeled.columns:
+        lines.append("\nRisk-state counts:")
+        for state, count in labeled["risk_state"].value_counts().items():
+            pct = count / len(labeled) if len(labeled) else 0
+            lines.append(f"  {state:24s} {count:6d} ({pct:6.2%})")
+
+    if "blocked_by" in labeled.columns:
+        blockers = (
+            labeled["blocked_by"]
+            .dropna()
+            .str.split(",")
+            .explode()
+        )
+        blockers = blockers[blockers != ""]
+        if not blockers.empty:
+            lines.append("\nBlocker counts:")
+            for blocker, count in blockers.value_counts().items():
+                pct = count / len(labeled) if len(labeled) else 0
+                lines.append(f"  {blocker:24s} {count:6d} ({pct:6.2%})")
 
     modifiers = (
         labeled["modifiers"]
