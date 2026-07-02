@@ -81,37 +81,62 @@ the SOL/Hyperliquid work:
   `scripts/research_utils.py` holds common signal sets, outcome parsing,
   timestamp normalization, bool parsing, and list parsing for the research CLIs.
 
-## Waiting On L2 Backfill
+## Data Reality
 
-- The long SOL L2 history backfill is the main missing input before trusting
-  liquidity-aware filters beyond the May-June sample.
-- Until it finishes, treat L2-rich candidate results as local sample reads, not
-  broad evidence.
-- The live L2 collector protects current/future coverage, but it does not fill
-  old gaps. The S3 monthly backfill is what expands historical coverage.
+- The long SOL L2 history backfill finished cleanly.
+- Live collectors protect current/future coverage, but they do not fill old
+  gaps. S3 backfills close historical gaps only after Hyperliquid publishes the
+  archive files.
 - Trade-flow/CVD is forward-only for now, so older joined tables may have no
-  `trade_*` coverage even when L2 exists.
+  `trade_*` coverage even when context and L2 exist.
+- Important current gap: Hyperliquid has not published June 30, 2026 S3
+  `asset_ctxs` or `l2Book` yet.
+  - Context gap: `2026-06-30 00:00:00` -> `2026-06-30 14:21:34 UTC`.
+  - L2 gap: `2026-06-30 00:00:00` -> `2026-07-01 21:15:00 UTC`.
 
 ## Data We Have
 
-- Binance SOL-USDT 1m: `2021-07-01` through `2026-07-01`, gap-free.
-- Binance SOL-USDT 5m: `2021-07-01` through `2026-07-01`, gap-free.
-- Binance SOL-USDT 1h: `2021-07-01` through `2026-06-30`.
-- Hyperliquid SOL asset context: starts `2023-05-20`; S3 currently through
-  `2026-06-01`, merged with live collector where available.
-- Hyperliquid SOL L2 feature sample: `2026-05-01` through `2026-06-01`.
+- Storage: repo `data/` is symlinked to
+  `/Volumes/Extreme Pro/hummingbot-market-data/data`.
+- Binance SOL-USDT 1m: `2021-07-01 00:00` through
+  `2026-07-02 16:05 UTC`, gap-free.
+- Binance SOL-USDT 5m: `2021-07-01 00:00` through
+  `2026-07-02 16:05 UTC`, gap-free.
+- Binance SOL-USDT 1h: `2021-07-01 00:00` through
+  `2026-07-02 16:00 UTC`, gap-free.
+- Hyperliquid SOL-USD native 1h: `2025-12-04 07:00` through
+  `2026-07-02 16:00 UTC`.
+- Hyperliquid SOL asset context:
+  - S3: `2023-05-20 02:50:04` through `2026-06-29 23:59 UTC`.
+  - Live: starts `2026-06-30 14:21:34 UTC`.
+  - Merged canonical file:
+    `data/context/hyperliquid_SOL_merged_context.csv`.
+- Hyperliquid SOL L2 execution features:
+  - S3 monthly archive: `2023-04-15` through `2026-06-29`, plus a
+    `2026-06-30` chunk with `0` rows because S3 returned 404 for all hours.
+  - Live: starts `2026-07-01 21:15 UTC`.
+  - Canonical merged file:
+    `data/microstructure/hyperliquid_SOL_l2_execution_1m_merged.csv`.
 - Hyperliquid live rich L2 collector:
   `data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv`, same schema
   as S3 L2 feature backfills.
+- Hyperliquid L2 monthly manifest:
+  `data/microstructure/hyperliquid_l2_monthly/SOL/manifest.csv`.
+- Latest audited counts on `2026-07-02`:
+  - S3 context rows: `1,614,207`.
+  - Merged context rows: `1,617,137`.
+  - S3 L2 manifest rows: `1,661,552`.
+  - Merged L2 rows: `1,649,762`.
 
 ## Data We Still Want
 
 - True historical Hyperliquid trades for real CVD and aggressive flow. The
   checked requester-pays S3 market-data path exposes `l2Book`; trade flow is
   forward-collected from the live websocket instead.
-- Longer Hyperliquid L2 feature history if L2 filters prove useful.
+- Hyperliquid S3 publication for June 30, 2026 `asset_ctxs` and `l2Book`, to
+  close the current archive gap.
 - Better liquidation-cluster data or heatmap data.
-- Native Hyperliquid candles at scale if we can avoid REST rate limits.
+- More native Hyperliquid candle history if we can avoid REST rate limits.
 
 ## Research Rule
 
@@ -137,6 +162,8 @@ Current default build:
 
 - Script: `scripts/build_joined_research_table.py`
 - Output: `data/research/sol_5m_joined_research.csv`
+- Use canonical L2 explicitly:
+  `--l2-csv data/microstructure/hyperliquid_SOL_l2_execution_1m_merged.csv`.
 - Important assumption: the 1h regime is joined with a one-hour availability
   lag so the table does not use the current unfinished 1h candle as known data.
 
@@ -180,3 +207,15 @@ Execution-aware pass:
 - Early read: local May-June short continuation can reach roughly `13` bps/day
   taker or `17` bps/day maker-entry at `5x`, but this is one month only and
   still below the 25 bps/day target.
+
+## Services To Remember
+
+- Live context collector:
+  `com.hyperion.hummingbot.hl-sol-context`.
+- Live L2 collector:
+  `com.hyperion.hummingbot.hl-sol-l2-forward`.
+- Service dashboard:
+  `conda run -n hummingbot python scripts/hummingbot_services_dashboard.py`
+  then open `reports/hummingbot_services_dashboard.html`.
+- Historical L2 backfill service:
+  `com.hyperion.hummingbot.hl-sol-l2-backfill` finished and should be idle.

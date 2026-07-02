@@ -147,11 +147,26 @@ This doc is only for the market-regime layer and its immediate support tools:
 - Storage: repo `data/` is a symlink to external SSD path
   `/Volumes/Extreme Pro/hummingbot-market-data/data`.
 - Price proxy: Binance perpetual `SOL-USDT` 1h candles, `2021-07-01` through
-  `2026-06-30`.
-- Hyperliquid S3 context: SOL `asset_ctxs`, `2023-05-20` through `2026-06-01`.
+  `2026-07-02 16:00 UTC`.
+- Entry candles: Binance perpetual `SOL-USDT` 1m and 5m candles,
+  `2021-07-01` through `2026-07-02 16:05 UTC`.
+- Native Hyperliquid 1h candles: `SOL-USD`, `2025-12-04 07:00` through
+  `2026-07-02 16:00 UTC`.
+- Hyperliquid S3 context: SOL `asset_ctxs`, `2023-05-20 02:50:04` through
+  `2026-06-29 23:59 UTC`.
 - Forward context collector: fills live Hyperliquid SOL context from its start
   time onward into `data/context/hyperliquid_SOL_context.csv`.
 - Canonical context input: `data/context/hyperliquid_SOL_merged_context.csv`.
+- Context gap to remember: June 30, 2026 from `00:00:00` to
+  `14:21:34 UTC`, because S3 has not published that day and the live collector
+  started at `14:21:34 UTC`.
+- Canonical L2 input for research:
+  `data/microstructure/hyperliquid_SOL_l2_execution_1m_merged.csv`.
+- Hyperliquid S3 L2 archive features:
+  `data/microstructure/hyperliquid_l2_monthly/SOL/manifest.csv`.
+  Current manifest has 40 chunks and `1,661,552` rows.
+- L2 gap to remember: June 30, 2026 from `00:00:00 UTC` until live L2 starts at
+  `2026-07-01 21:15 UTC`, because the June 30 S3 `l2Book` files are still 404.
 - Labeled regime dataset:
   `data/regimes/binance_perpetual_SOL-USDT_1h_sol_1h_5y_hl_context.csv`.
 - Enriched regime dataset:
@@ -184,10 +199,30 @@ This doc is only for the market-regime layer and its immediate support tools:
 - Merged CSV: `data/context/hyperliquid_SOL_merged_context.csv`
 - Use the merged CSV as `--context-csv` for regime backfills.
 
+## Running L2 Collector
+
+- Start/reload: `scripts/install_hl_sol_l2_forward_service.sh`
+- Stop/remove: `scripts/uninstall_hl_sol_l2_forward_service.sh`
+- Check service:
+  `launchctl print gui/$(id -u)/com.hyperion.hummingbot.hl-sol-l2-forward`
+- Watch output: `tail -f logs/hyperliquid_sol_l2_forward.out.log`
+- Watch errors: `tail -f logs/hyperliquid_sol_l2_forward.err.log`
+- Live CSV: `data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv`
+- Canonical merged L2 CSV:
+  `data/microstructure/hyperliquid_SOL_l2_execution_1m_merged.csv`
+- The collector does not backfill missed history. Use S3 L2 backfills to close
+  archive gaps after Hyperliquid publishes the files.
+
 ## Common Commands
 
 - Backfill context:
-  `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2023-05-20 --end 2026-06-01`
+  `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_context.py --coin SOL --start 2023-05-20 --end 2026-06-29`
+- Merge context:
+  `conda run -n hummingbot python scripts/merge_hyperliquid_context.py --coin SOL --s3-csv data/context/hyperliquid_SOL_s3_context.csv --live-csv data/context/hyperliquid_SOL_context.csv --output data/context/hyperliquid_SOL_merged_context.csv --prefer live`
+- Backfill L2 by month:
+  `conda run -n hummingbot python scripts/backfill_hyperliquid_s3_l2_monthly.py --coin SOL --start 2023-04-15 --end 2026-06-30`
+- Use L2 in joined research:
+  add `--l2-csv data/microstructure/hyperliquid_SOL_l2_execution_1m_merged.csv` to `scripts/build_joined_research_table.py`
 - Label regimes with context:
   add `--context-csv data/context/hyperliquid_SOL_merged_context.csv --context-builder sol_1h` to `scripts/backfill_market_regimes.py`
 - Enrich with signal features:
