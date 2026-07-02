@@ -6,27 +6,24 @@ Default usage:
 """
 import argparse
 import os
-import re
-from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
 
+from research_utils import (
+    LONG_SIGNALS,
+    OUTCOME_RE,
+    SHORT_SIGNALS,
+    bool_series,
+    epoch_to_utc,
+    parse_float_list,
+)
+
 
 DEFAULT_INPUT = "data/research/sol_5m_joined_research.csv"
 DEFAULT_OUTPUT_DIR = "data/research/analysis"
 
-LONG_SIGNALS = {
-    "strong_long_continuation",
-    "short_squeeze_risk",
-    "weak_breakdown_trap",
-}
-SHORT_SIGNALS = {
-    "strong_short_continuation",
-    "long_squeeze_risk",
-    "weak_breakout_trap",
-}
 BASE_COLUMNS = [
     "timestamp",
     "regime_label",
@@ -47,24 +44,6 @@ BASE_COLUMNS = [
     "l2_depth_top5_usd",
     "l2_mean_spread_pct",
 ]
-OUTCOME_RE = re.compile(r"^(long|short)_(sl[^_]+_tp[^_]+)_h(\d+)_return$")
-
-
-def epoch_to_utc(timestamp: int) -> str:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def parse_float_list(value: str) -> List[float]:
-    return [float(item.strip()) for item in value.split(",") if item.strip()]
-
-
-def bool_series(frame: pd.DataFrame, column: str) -> pd.Series:
-    if column not in frame.columns:
-        return pd.Series(False, index=frame.index)
-    values = frame[column]
-    if values.dtype == bool:
-        return values.fillna(False)
-    return values.fillna(False).astype(str).str.lower().isin({"true", "1", "yes", "y"})
 
 
 def load_columns(path: str) -> Tuple[pd.DataFrame, List[Tuple[str, str, str, str]]]:

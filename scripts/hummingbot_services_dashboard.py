@@ -216,17 +216,11 @@ def last_nonempty_line(path: str) -> Optional[str]:
 def first_data_line(path: str) -> Optional[str]:
     try:
         with open(path, "r", newline="", errors="replace") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            row = next(reader, None)
+            next(file, None)
+            line = next(file, "").rstrip("\n")
     except OSError:
         return None
-    if row is None:
-        return None
-    output = []
-    with open(path, "r", newline="", errors="replace") as file:
-        next(file, None)
-        return next(file, "").rstrip("\n") or None
+    return line or None
 
 
 def parse_timestamp(value: str) -> str:

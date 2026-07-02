@@ -6,6 +6,30 @@ strategy research.
 Start here for the bigger picture:
 `docs/strategy_research_mental_model.md`.
 
+## What Exists Now
+
+The current research stack has five layers:
+
+1. Regime map: 1h market structure labels, side gates, modifiers, confidence,
+   and risk multipliers.
+2. Signal evidence: reusable trend, VWAP, momentum, volume, derivatives,
+   liquidity, and trap features interpreted as named long/short/risk-off
+   signals.
+3. Context feeds: Hyperliquid asset context, S3 context catch-up, live context
+   collection, rich L2 order-book features, and forward trade-flow/CVD.
+4. Joined research tables: 1m/5m candles plus lagged regimes, context, optional
+   L2/trade-flow, signal labels, and forward stop/take outcomes.
+5. Candidate evaluation: broad slice scans, stricter train/test edge mining,
+   and execution-aware replay with taker or maker-entry assumptions.
+
+While the long L2 backfill is running, the most reliable workflow is:
+
+1. Use the services dashboard to check collectors and manifest progress.
+2. Keep live context and live L2 collectors running.
+3. Build joined tables with the best available context/L2 coverage.
+4. Treat L2-filtered results as provisional until the historical L2 manifest
+   covers enough months to evaluate multiple regimes.
+
 ## Files
 
 - `hummingbot/strategy_v2/utils/market_regime.py`
@@ -103,6 +127,12 @@ Start here for the bigger picture:
   - Manifest:
     `data/microstructure/hyperliquid_l2_monthly/SOL/manifest.csv`.
 
+- `scripts/collect_hyperliquid_l2_features.py`
+  - Forward-collects live Hyperliquid `l2Book` snapshots into the same rich
+    1-minute execution schema as the S3 L2 backfill.
+  - SOL output:
+    `data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv`.
+
 - `scripts/collect_hyperliquid_trades.py`
   - Forward-collects public Hyperliquid trades from the websocket.
   - Aggregates true aggressive buy/sell flow, VWAP, net volume, and CVD into
@@ -126,11 +156,28 @@ Start here for the bigger picture:
     `data/research/analysis/joined_5m_signal_outcomes.csv` and
     `data/research/analysis/joined_5m_signal_outcomes_top.csv`.
 
+- `scripts/mine_research_edges.py`
+  - Mines joined tables for more restrictive candidate edges.
+  - Adds filters greedily on train data, checks train/test trade counts, and
+    reports full-period calendar bps.
+  - Default output:
+    `data/research/analysis/joined_5m_edge_candidates.csv`.
+
 - `scripts/simulate_research_candidates.py`
   - Replays ranked slices chronologically with one open trade per candidate.
   - Supports taker and maker-entry/taker-exit assumptions, configurable fees,
     fixed/dynamic slippage, notional size, passive fill checks, and calendar
     bps reporting.
+
+- `scripts/hummingbot_services_dashboard.py`
+  - Generates a static local dashboard for known data services, output files,
+    logs, manifest progress, and partial monthly L2 outputs.
+  - Output: `reports/hummingbot_services_dashboard.html`.
+
+- `scripts/research_utils.py`
+  - Shared helpers for local research CLIs.
+  - Holds signal sets, stop/take outcome parsing, timestamp normalization,
+    bool parsing, and comma-separated list parsing.
 
 - `scripts/enrich_market_signal_features.py`
   - Enriches any candle/regime CSV with reusable signal-discovery columns.

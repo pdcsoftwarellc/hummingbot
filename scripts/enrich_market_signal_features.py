@@ -11,7 +11,6 @@ Usage:
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
 from typing import Optional
 
 import pandas as pd
@@ -22,35 +21,11 @@ from hummingbot.strategy_v2.utils.market_signal_features import (  # noqa: E402
     MarketSignalFeatureConfig,
     enrich_market_signal_features,
 )
-
-
-def normalize_timestamp_column(frame: pd.DataFrame, source: str) -> pd.DataFrame:
-    frame = frame.copy()
-    if "timestamp" not in frame.columns:
-        raise ValueError(f"{source} must include a timestamp column")
-    raw_timestamp = frame["timestamp"].astype(str).str.strip()
-    numeric_timestamp = pd.to_numeric(frame["timestamp"], errors="coerce")
-    if numeric_timestamp.notna().all() and raw_timestamp.str.fullmatch(r"\d+(\.\d+)?").all():
-        frame["timestamp"] = numeric_timestamp.astype(float).astype(int)
-        return frame
-
-    parsed_timestamp = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
-    if parsed_timestamp.isna().any():
-        bad_count = int(parsed_timestamp.isna().sum())
-        raise ValueError(f"{source} has {bad_count} invalid timestamp values")
-    epoch_start = pd.Timestamp("1970-01-01", tz="UTC")
-    frame["timestamp"] = (parsed_timestamp - epoch_start).dt.total_seconds().astype(int)
-    return frame
-
-
-def epoch_to_utc(timestamp: int) -> str:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+from scripts.research_utils import epoch_to_utc, load_csv_frame, parse_int_list  # noqa: E402
 
 
 def load_frame(path: str, source: str) -> pd.DataFrame:
-    frame = normalize_timestamp_column(pd.read_csv(path), source)
-    frame = frame.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
-    return frame
+    return load_csv_frame(path, source)
 
 
 def merge_context(
@@ -88,7 +63,7 @@ def merge_context(
 
 
 def parse_periods(value: str):
-    return [int(item.strip()) for item in value.split(",") if item.strip()]
+    return parse_int_list(value)
 
 
 def parse_args():

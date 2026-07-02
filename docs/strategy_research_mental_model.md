@@ -37,6 +37,61 @@ signals, or strategies.
 - Liquidity context: Hyperliquid S3 L2 1m features where backfilled, plus live
   rich L2 rows once `collect_hyperliquid_l2_features.py` is running.
 
+## What We Built
+
+This is the short reload list for the additional research parts added around
+the SOL/Hyperliquid work:
+
+- Higher-timeframe regime map:
+  `hummingbot/strategy_v2/utils/market_regime.py` plus
+  `scripts/regime_configs/sol_1h.yml`.
+- Market context layer:
+  `hummingbot/strategy_v2/utils/market_regime_context.py`,
+  `scripts/collect_hyperliquid_context.py`,
+  `scripts/backfill_hyperliquid_s3_context.py`, and
+  `scripts/merge_hyperliquid_context.py`.
+- Signal feature and interpretation layer:
+  `hummingbot/strategy_v2/utils/market_signal_features.py`,
+  `hummingbot/strategy_v2/utils/market_signals.py`,
+  `scripts/enrich_market_signal_features.py`, and
+  `scripts/label_market_signals.py`.
+- Joined research table builder:
+  `scripts/build_joined_research_table.py`, which joins lower-timeframe candles,
+  lagged 1h regimes, Hyperliquid context, optional L2, optional trade flow,
+  signal features, signal labels, and forward stop/take outcomes.
+- Slice/ranking tools:
+  `scripts/analyze_joined_research_table.py` for broad signal slice scans and
+  `scripts/mine_research_edges.py` for stricter train/test edge mining.
+- Execution replay:
+  `scripts/simulate_research_candidates.py`, which replays ranked candidates
+  chronologically with one open trade per candidate and taker or maker-entry
+  execution assumptions.
+- L2 microstructure pipeline:
+  `scripts/backfill_hyperliquid_s3_l2_features.py`,
+  `scripts/backfill_hyperliquid_s3_l2_monthly.py`, and
+  `scripts/collect_hyperliquid_l2_features.py`.
+- Trade-flow/CVD pipeline:
+  `scripts/collect_hyperliquid_trades.py`, forward-only from the live websocket
+  because historical S3 trade files were not found in the checked archive path.
+- Service visibility:
+  `scripts/hummingbot_services_dashboard.py`, which writes
+  `reports/hummingbot_services_dashboard.html` with LaunchAgent status, logs,
+  output files, manifest progress, and partial outputs.
+- Shared research helpers:
+  `scripts/research_utils.py` holds common signal sets, outcome parsing,
+  timestamp normalization, bool parsing, and list parsing for the research CLIs.
+
+## Waiting On L2 Backfill
+
+- The long SOL L2 history backfill is the main missing input before trusting
+  liquidity-aware filters beyond the May-June sample.
+- Until it finishes, treat L2-rich candidate results as local sample reads, not
+  broad evidence.
+- The live L2 collector protects current/future coverage, but it does not fill
+  old gaps. The S3 monthly backfill is what expands historical coverage.
+- Trade-flow/CVD is forward-only for now, so older joined tables may have no
+  `trade_*` coverage even when L2 exists.
+
 ## Data We Have
 
 - Binance SOL-USDT 1m: `2021-07-01` through `2026-07-01`, gap-free.

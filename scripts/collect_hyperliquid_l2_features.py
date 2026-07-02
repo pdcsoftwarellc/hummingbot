@@ -24,7 +24,6 @@ from scripts.backfill_hyperliquid_s3_l2_features import FIELDNAMES, MinuteBucket
 
 
 INFO_URL = "https://api.hyperliquid.xyz/info"
-DEFAULT_OUTPUT = "data/microstructure/hyperliquid_SOL_l2_execution_live_1m.csv"
 
 
 def post_info(payload: Dict) -> object:

@@ -8,7 +8,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
@@ -22,6 +21,7 @@ from hummingbot.strategy_v2.utils.market_signal_features import (  # noqa: E402
     enrich_market_signal_features,
 )
 from hummingbot.strategy_v2.utils.market_signals import MarketSignalConfig, MarketSignalDetector  # noqa: E402
+from scripts.research_utils import epoch_to_utc, load_csv_frame, parse_int_list  # noqa: E402
 
 
 DEFAULT_CANDLES = "data/candles/binance_perpetual_SOL-USDT_5m.csv"
@@ -93,36 +93,8 @@ CONTEXT_CANONICAL_COLUMNS = [
 ]
 
 
-def epoch_to_utc(timestamp: int) -> str:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def normalize_timestamp_column(frame: pd.DataFrame, source: str) -> pd.DataFrame:
-    frame = frame.copy()
-    if "timestamp" not in frame.columns:
-        raise ValueError(f"{source} must include a timestamp column")
-    raw_timestamp = frame["timestamp"].astype(str).str.strip()
-    numeric_timestamp = pd.to_numeric(frame["timestamp"], errors="coerce")
-    if numeric_timestamp.notna().all() and raw_timestamp.str.fullmatch(r"\d+(\.\d+)?").all():
-        frame["timestamp"] = numeric_timestamp.astype(float).astype(int)
-        return frame
-
-    parsed_timestamp = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
-    if parsed_timestamp.isna().any():
-        bad_count = int(parsed_timestamp.isna().sum())
-        raise ValueError(f"{source} has {bad_count} invalid timestamp values")
-    epoch_start = pd.Timestamp("1970-01-01", tz="UTC")
-    frame["timestamp"] = (parsed_timestamp - epoch_start).dt.total_seconds().astype(int)
-    return frame
-
-
 def load_frame(path: str, source: str) -> pd.DataFrame:
-    frame = normalize_timestamp_column(pd.read_csv(path, low_memory=False), source)
-    return frame.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
-
-
-def parse_int_list(value: str) -> List[int]:
-    return [int(item.strip()) for item in value.split(",") if item.strip()]
+    return load_csv_frame(path, source, low_memory=False)
 
 
 def parse_stop_take_pairs(value: str) -> List[Tuple[float, float]]:

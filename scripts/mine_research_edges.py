@@ -12,55 +12,29 @@ Default usage:
 """
 import argparse
 import os
-import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
+from research_utils import (
+    LONG_SIGNALS,
+    OUTCOME_RE,
+    SHORT_SIGNALS,
+    bool_series,
+    epoch_to_utc,
+    parse_float_list,
+    parse_int_list,
+)
+
 
 DEFAULT_INPUT = "data/research/sol_5m_joined_research.csv"
 DEFAULT_OUTPUT = "data/research/analysis/joined_5m_edge_candidates.csv"
-LONG_SIGNALS = {
-    "strong_long_continuation",
-    "short_squeeze_risk",
-    "weak_breakdown_trap",
-}
-SHORT_SIGNALS = {
-    "strong_short_continuation",
-    "long_squeeze_risk",
-    "weak_breakout_trap",
-}
-OUTCOME_RE = re.compile(r"^(long|short)_(sl[^_]+_tp[^_]+)_h(\d+)_return$")
-
-
 @dataclass(frozen=True)
 class FilterAtom:
     name: str
     mask: pd.Series
-
-
-def epoch_to_utc(timestamp: int) -> str:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def bool_series(frame: pd.DataFrame, column: str) -> pd.Series:
-    if column not in frame.columns:
-        return pd.Series(False, index=frame.index)
-    values = frame[column]
-    if values.dtype == bool:
-        return values.fillna(False)
-    return values.fillna(False).astype(str).str.lower().isin({"true", "1", "yes", "y"})
-
-
-def parse_float_list(value: str) -> List[float]:
-    return [float(item.strip()) for item in value.split(",") if item.strip()]
-
-
-def parse_int_list(value: str) -> List[int]:
-    return [int(item.strip()) for item in value.split(",") if item.strip()]
 
 
 def discover_outcomes(header: Sequence[str]) -> List[Tuple[str, str, int, str, str]]:
